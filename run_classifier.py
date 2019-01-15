@@ -346,6 +346,182 @@ class MarcoProcessor(DataProcessor):
         return ["0", "1"]
 
 
+class FormalMarcoProcessor(DataProcessor):
+    def __init__(self):
+        self.max_train_example = 640000
+
+    def get_train_examples(self, data_dir):
+        examples = []
+        train_file = open(os.path.join(data_dir, "triples.train.small.tsv00"))
+        for (i, line) in enumerate(train_file):
+            q, d_pos, d_neg = line.strip().split('\t')
+            guid_pos = "train-pos-%d" % i
+            guid_neg = "train-neg-%d" % i
+            q = tokenization.convert_to_unicode(q)
+            d_pos = tokenization.convert_to_unicode(d_pos)
+            d_neg = tokenization.convert_to_unicode(d_neg)
+            examples.append(
+                InputExample(guid=guid_pos, text_a=q, text_b=d_pos, label=tokenization.convert_to_unicode("1"))
+            )
+            examples.append(
+                InputExample(guid=guid_neg, text_a=q, text_b=d_neg, label=tokenization.convert_to_unicode("0"))
+            )
+            if len(examples) >= self.max_train_example:
+                break
+        train_file.close()
+        random.shuffle(examples)
+        return examples
+
+    def get_dev_examples(self, data_dir):
+        examples = []
+        dev_file = open(os.path.join(data_dir, "devsmall.baseline.tsv"))
+        qrel_file = open(os.path.join(data_dir, "qrels.dev.tsv"))
+        qrels = self._read_qrel(qrel_file)
+
+        for i, line in enumerate(dev_file):
+            qid, docid, q, d = line.split('\t')
+            label = tokenization.convert_to_unicode("0")
+            if (qid, docid) in qrels:
+                label = tokenization.convert_to_unicode("1")
+                print(qid, docid)
+            guid = "dev-%d" % i
+            examples.append(
+                InputExample(guid=guid, text_a=q, text_b=d, label=label)
+            )
+        dev_file.close()
+        qrel_file.close()
+        return examples
+
+    def get_test_examples(self, data_dir):
+        examples = []
+        dev_file = open(os.path.join(data_dir, "devsmall.baseline.tsv"))
+        qrel_file = open(os.path.join(data_dir, "qrels.dev.tsv"))
+        qrels = self._read_qrel(qrel_file)
+
+        for i, line in enumerate(dev_file):
+            qid, docid, q, d = line.split('\t')
+            label = tokenization.convert_to_unicode("0")
+            if (qid, docid) in qrels:
+                label = tokenization.convert_to_unicode("1")
+                print(qid, docid)
+            guid = "dev-%d" % i
+            examples.append(
+                InputExample(guid=guid, text_a=q, text_b=d, label=label)
+            )
+        dev_file.close()
+        qrel_file.close()
+        return examples
+
+    def _read_qrel(self, qrel_file):
+        qrels = set()
+        for line in qrel_file:
+            qid, docid = line.strip().split('\t')
+            qrels.add((qid, docid))
+        return qrels
+
+    def get_labels(self):
+        return ["0", "1"]
+
+
+class RobustProcessor(DataProcessor):
+
+    def __init__(self):
+        self.max_train_example = 640000
+        self.max_test_depth = 1000
+
+    def get_train_examples(self, data_dir):
+        examples = []
+        train_file = open(os.path.join(data_dir, "train.trec"))
+        qrel_file = open(os.path.join(data_dir, "qrels"))
+        qrels = self._read_qrel(qrel_file)
+
+        for i, line in enumerate(train_file):
+            items = line.strip().split('#')
+            trec_line = items[0]
+            json_dict = json.loads('#'.join(items[1:]))
+            q = tokenization.convert_to_unicode(json_dict["query"])
+            d = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+            r = int(r)
+            if r > self.max_test_depth:
+                continue
+            label = tokenization.convert_to_unicode("0")
+            if (qid, docid) in qrels:
+                label = tokenization.convert_to_unicode("1")
+                print(qid, docid)
+            guid = "dev-%d" % i
+            examples.append(
+                InputExample(guid=guid, text_a=q, text_b=d, label=label)
+            )
+        train_file.close()
+        random.shuffle(examples)
+        return examples
+
+    def get_dev_examples(self, data_dir):
+        examples = []
+        dev_file = open(os.path.join(data_dir, "dev.trec"))
+        qrel_file = open(os.path.join(data_dir, "qrels"))
+        qrels = self._read_qrel(qrel_file)
+
+        for i, line in enumerate(dev_file):
+            items = line.strip().split('#')
+            trec_line = items[0]
+            json_dict = json.loads('#'.join(items[1:]))
+            q = tokenization.convert_to_unicode(json_dict["query"])
+            d = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+            r = int(r)
+            if r > self.max_test_depth:
+                continue
+            label = tokenization.convert_to_unicode("0")
+            if (qid, docid) in qrels:
+                label = tokenization.convert_to_unicode("1")
+                print(qid, docid)
+            guid = "dev-%d" % i
+            examples.append(
+                InputExample(guid=guid, text_a=q, text_b=d, label=label)
+            )
+        dev_file.close()
+        return examples
+
+    def get_test_examples(self, data_dir):
+        examples = []
+        dev_file = open(os.path.join(data_dir, "test.trec"))
+        qrel_file = open(os.path.join(data_dir, "qrels"))
+        qrels = self._read_qrel(qrel_file)
+
+        for i, line in enumerate(dev_file):
+            items = line.strip().split('#')
+            trec_line = items[0]
+            json_dict = json.loads('#'.join(items[1:]))
+            q = tokenization.convert_to_unicode(json_dict["query"])
+            d = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+            r = int(r)
+            if r > self.max_test_depth:
+                continue
+            label = tokenization.convert_to_unicode("0")
+            if (qid, docid) in qrels:
+                label = tokenization.convert_to_unicode("1")
+            guid = "dev-%d" % i
+            examples.append(
+                InputExample(guid=guid, text_a=q, text_b=d, label=label)
+            )
+        dev_file.close()
+        return examples
+
+    def _read_qrel(self, qrel_file):
+        qrels = set()
+        for line in qrel_file:
+            qid, docid = line.strip().split('\t')
+            qrels.add((qid, docid))
+        return qrels
+
+    def get_labels(self):
+        return ["0", "1"]
+
+
+
 class MnliProcessor(DataProcessor):
   """Processor for the MultiNLI data set (GLUE version)."""
 
