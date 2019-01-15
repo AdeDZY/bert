@@ -521,6 +521,80 @@ class RobustProcessor(DataProcessor):
         return ["0", "1"]
 
 
+class BingLogTitleProcessor(DataProcessor):
+
+    def __init__(self):
+        self.max_train_example = 64000
+
+    def get_train_examples(self, data_dir):
+        examples = []
+        train_file = open(os.path.join(data_dir, "train.DCTR.trec.with_dmoz_new.shuf.json"))
+        for (i, line) in enumerate(train_file):
+            json_dict = json.loads(line)
+            q = json_dict['q']
+            d_pos = json_dict['d_pos']['title']
+            d_neg = json_dict['d_neg']['title']
+            guid_pos = "train-pos-%d" % i
+            guid_neg = "train-neg-%d" % i
+            q = tokenization.convert_to_unicode(q)
+            d_pos = tokenization.convert_to_unicode(d_pos)
+            d_neg = tokenization.convert_to_unicode(d_neg)
+            examples.append(
+                InputExample(guid=guid_pos, text_a=q, text_b=d_pos, label=tokenization.convert_to_unicode("1"))
+            )
+            examples.append(
+                InputExample(guid=guid_neg, text_a=q, text_b=d_neg, label=tokenization.convert_to_unicode("0"))
+            )
+            if len(examples) >= self.max_train_example:
+                break
+        train_file.close()
+        random.shuffle(examples)
+        return examples
+
+    def get_dev_examples(self, data_dir):
+        examples = []
+        dev_file = open(os.path.join(data_dir, "dev.DCTR.trec.with_dmoz_new.json"))
+        for (i, line) in enumerate(dev_file):
+            json_dict = json.loads(line)
+            q = json_dict['q']
+            d_pos = json_dict['d_pos']['title']
+            d_neg = json_dict['d_neg']['title']
+            guid_pos = "dev-pos-%d" % i
+            guid_neg = "dev-neg-%d" % i
+            q = tokenization.convert_to_unicode(q)
+            d_pos = tokenization.convert_to_unicode(d_pos)
+            d_neg = tokenization.convert_to_unicode(d_neg)
+            examples.append(
+                InputExample(guid=guid_pos, text_a=q, text_b=d_pos, label=tokenization.convert_to_unicode("1"))
+            )
+            examples.append(
+                InputExample(guid=guid_neg, text_a=q, text_b=d_neg, label=tokenization.convert_to_unicode("0"))
+            )
+        dev_file.close()
+        return examples
+
+
+    def get_test_examples(self, data_dir):
+        examples = []
+        test_file = open(os.path.join(data_dir, "test.DCTR.trec.with_dmoz_new.json"))
+        qrel_file = open(os.path.join(data_dir, "qrels.dev.tsv"))
+
+        for (i, line) in enumerate(test_file):
+            json_dict = json.loads(line)
+            q = json_dict['q']
+            d = json_dict['d']['title']
+            guid_pos = "test-%d" % i
+            q = tokenization.convert_to_unicode(q)
+            d = tokenization.convert_to_unicode(d)
+            label = 0
+            examples.append(
+                InputExample(guid=guid_pos, text_a=q, text_b=d, label=tokenization.convert_to_unicode(label))
+            )
+        test_file.close()
+        return examples
+
+    def get_labels(self):
+        return ["0", "1"]
 
 class MnliProcessor(DataProcessor):
   """Processor for the MultiNLI data set (GLUE version)."""
