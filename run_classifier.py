@@ -257,14 +257,15 @@ class XnliProcessor(DataProcessor):
 class MarcoProcessor(DataProcessor):
 
     def __init__(self):
-        self.max_train_example = 640000
+        self.max_train_example = 640000 
+        self.max_test_depth = 1000
 
     def get_train_examples(self, data_dir):
         examples = []
-        train_file = open(os.path.join(data_dir, "triples.train.small.segmented.new_vocab.tsv01"))
+        train_file = open(os.path.join(data_dir, "triples.train.small.tsv00"))
         for (i, line) in enumerate(train_file):
-            if random.random() < 0.1:
-                continue
+            # if random.random() < 0.1:
+            #    continue
             q, d_pos, d_neg = line.strip().split('\t')
             guid_pos = "train-pos-%d" % i
             guid_neg = "train-neg-%d" % i
@@ -277,7 +278,7 @@ class MarcoProcessor(DataProcessor):
             examples.append(
                 InputExample(guid=guid_neg, text_a=q, text_b=d_neg, label=tokenization.convert_to_unicode("0"))
             )
-            if len(examples) > self.max_train_example:
+            if len(examples) >= self.max_train_example:
                 break
         train_file.close()
         random.shuffle(examples)
@@ -285,7 +286,7 @@ class MarcoProcessor(DataProcessor):
 
     def get_dev_examples(self, data_dir):
         examples = []
-        dev_file = open(os.path.join(data_dir, "devsmall.LM.trec.new_vocab.with_json"))
+        dev_file = open(os.path.join(data_dir, "devsmall.LM.trec.with_json"))
         qrel_file = open(os.path.join(data_dir, "qrels.dev.tsv"))
         qrels = self._read_qrel(qrel_file)
 
@@ -295,10 +296,13 @@ class MarcoProcessor(DataProcessor):
             json_dict = json.loads('#'.join(items[1:]))
             q = tokenization.convert_to_unicode(json_dict["query"])
             d = tokenization.convert_to_unicode(json_dict["doc"]["title"])
-            qid, _, docid, _, _, _ = trec_line.strip().split(' ')
+            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+            r = int(r)
+            if r > self.max_test_depth: continue
             label = tokenization.convert_to_unicode("0")
             if (qid, docid) in qrels:
                 label = tokenization.convert_to_unicode("1")
+                print(qid, docid)
             guid = "dev-%d" % i
             examples.append(
                 InputExample(guid=guid, text_a=q, text_b=d, label=label)
@@ -308,7 +312,7 @@ class MarcoProcessor(DataProcessor):
 
     def get_test_examples(self, data_dir):
         examples = []
-        dev_file = open(os.path.join(data_dir, "devsmall.LM.trec.new_vocab.with_json"))
+        dev_file = open(os.path.join(data_dir, "devsmall.LM.trec.with_json"))
         qrel_file = open(os.path.join(data_dir, "qrels.dev.tsv"))
         qrels = self._read_qrel(qrel_file)
 
@@ -318,7 +322,9 @@ class MarcoProcessor(DataProcessor):
             json_dict = json.loads('#'.join(items[1:]))
             q = tokenization.convert_to_unicode(json_dict["query"])
             d = tokenization.convert_to_unicode(json_dict["doc"]["title"])
-            qid, _, docid, _, _, _ = trec_line.strip().split(' ')
+            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+            r = int(r)
+            if r > self.max_test_depth: continue
             label = tokenization.convert_to_unicode("0")
             if (qid, docid) in qrels:
                 label = tokenization.convert_to_unicode("1")
@@ -332,7 +338,7 @@ class MarcoProcessor(DataProcessor):
     def _read_qrel(self, qrel_file):
         qrels = set()
         for line in qrel_file:
-            qid, docid = line.strip.split('\t')
+            qid, docid = line.strip().split('\t')
             qrels.add((qid, docid))
         return qrels
 
