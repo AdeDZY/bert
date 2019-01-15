@@ -577,7 +577,6 @@ class BingLogTitleProcessor(DataProcessor):
     def get_test_examples(self, data_dir):
         examples = []
         test_file = open(os.path.join(data_dir, "test.DCTR.trec.with_dmoz_new.json"))
-        qrel_file = open(os.path.join(data_dir, "qrels.dev.tsv"))
 
         for (i, line) in enumerate(test_file):
             json_dict = json.loads(line)
@@ -586,7 +585,7 @@ class BingLogTitleProcessor(DataProcessor):
             guid_pos = "test-%d" % i
             q = tokenization.convert_to_unicode(q)
             d = tokenization.convert_to_unicode(d)
-            label = 0
+            label = "0"
             examples.append(
                 InputExample(guid=guid_pos, text_a=q, text_b=d, label=tokenization.convert_to_unicode(label))
             )
@@ -1133,6 +1132,7 @@ def main(_):
       "mrpc": MrpcProcessor,
       "xnli": XnliProcessor,
       "marco": MarcoProcessor,
+      "binglogtitle": BingLogTitleProcessor,
   }
 
   tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
