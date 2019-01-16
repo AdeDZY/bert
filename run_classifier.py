@@ -1059,7 +1059,7 @@ def create_siamese_model(bert_config, is_training, input_ids, input_mask, segmen
       input_mask=text1_input_mask,
       use_one_hot_embeddings=use_one_hot_embeddings)
 
-  model_text2 = modeling.BertConfig(
+  model_text2 = modeling.BertModel(
       config=bert_config,
       is_training=is_training,
       input_ids=text2_input_ids,
