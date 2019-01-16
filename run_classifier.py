@@ -427,38 +427,48 @@ class RobustProcessor(DataProcessor):
 
     def __init__(self):
         self.max_test_depth = 1000
+        self.n_folds = 5
+        self.fold = 0
+        self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 2)]
+        self.dev_fold = (self.fold + self.n_folds - 2) % self.n_folds + 1
+        self.test_folds = (self.fold + self.n_folds - 1) % self.n_folds + 1
+        tf.logging.info("Train Folds: {}".format(str(self.train_folds)))
+        tf.logging.info("Dev Fold: {}".format(str(self.dev_fold)))
+        tf.logging.info("Test Fold: {}".format(str(self.test_folds)))
 
     def get_train_examples(self, data_dir):
         examples = []
-        train_file = open(os.path.join(data_dir, "train.trec"))
+        train_files = ["{}.trec.with_json".format(i) for i in self.train_folds]
         qrel_file = open(os.path.join(data_dir, "qrels"))
         qrels = self._read_qrel(qrel_file)
 
-        for i, line in enumerate(train_file):
-            items = line.strip().split('#')
-            trec_line = items[0]
-            json_dict = json.loads('#'.join(items[1:]))
-            q = tokenization.convert_to_unicode(json_dict["query"])
-            d = tokenization.convert_to_unicode(json_dict["doc"]["title"])
-            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
-            r = int(r)
-            if r > self.max_test_depth:
-                continue
-            label = tokenization.convert_to_unicode("0")
-            if (qid, docid) in qrels:
-                label = tokenization.convert_to_unicode("1")
-                print(qid, docid)
-            guid = "dev-%d" % i
-            examples.append(
-                InputExample(guid=guid, text_a=q, text_b=d, label=label)
-            )
-        train_file.close()
+        for file_name in train_files:
+            train_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(train_file):
+                items = line.strip().split('#')
+                trec_line = items[0]
+                json_dict = json.loads('#'.join(items[1:]))
+                q = tokenization.convert_to_unicode(json_dict["query"])
+                d = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+                qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+                r = int(r)
+                if r > self.max_test_depth:
+                    continue
+                label = tokenization.convert_to_unicode("0")
+                if (qid, docid) in qrels:
+                    label = tokenization.convert_to_unicode("1")
+                    print(qid, docid)
+                guid = "dev-%d" % i
+                examples.append(
+                    InputExample(guid=guid, text_a=q, text_b=d, label=label)
+                )
+            train_file.close()
         random.shuffle(examples)
         return examples
 
     def get_dev_examples(self, data_dir):
         examples = []
-        dev_file = open(os.path.join(data_dir, "dev.trec"))
+        dev_file = open(os.path.join(data_dir, "{}.trec.with_json".format(self.dev_folds)))
         qrel_file = open(os.path.join(data_dir, "qrels"))
         qrels = self._read_qrel(qrel_file)
 
@@ -485,7 +495,7 @@ class RobustProcessor(DataProcessor):
 
     def get_test_examples(self, data_dir):
         examples = []
-        dev_file = open(os.path.join(data_dir, "test.trec"))
+        dev_file = open(os.path.join(data_dir, "{}.trec.with_json".format(self.test_folds)))
         qrel_file = open(os.path.join(data_dir, "qrels"))
         qrels = self._read_qrel(qrel_file)
 
