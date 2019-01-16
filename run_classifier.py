@@ -1066,9 +1066,15 @@ def create_siamese_model(bert_config, is_training, input_ids, input_mask, segmen
       input_mask=text2_input_mask,
       use_one_hot_embeddings=use_one_hot_embeddings)
 
-  text1_output_layer = model_text1.get_pooled_output()
-  text2_output_layer = model_text2.get_pooled_output()
-  output_layer = tf.concat([text1_output_layer, text2_output_layer], -1)
+  text1_output_layer = model_text1.et_sequence_output() # [batch_size, seq_length, hidden_size]
+  text2_output_layer = model_text2.get_sequence_output()
+
+  minus_mask = lambda x, m: x - tf.expand_dims(1.0 - m, axis=-1) * 1e30
+  masked_reduce_max = lambda x, m: tf.reduce_max(minus_mask(x, m), axis=1)
+
+  pooled_text1_output_layer = masked_reduce_max(text1_output_layer, text1_input_mask)
+  pooled_text2_output_layer = masked_reduce_max(text2_output_layer, text2_input_mask)
+  output_layer = tf.concat([pooled_text1_output_layer, pooled_text2_output_layer], -1)
 
   hidden_size = output_layer.shape[-1].value
 
