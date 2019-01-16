@@ -1072,8 +1072,8 @@ def create_siamese_model(bert_config, is_training, input_ids, input_mask, segmen
   minus_mask = lambda x, m: x - tf.expand_dims(1.0 - m, axis=-1) * 1e30
   masked_reduce_max = lambda x, m: tf.reduce_max(minus_mask(x, m), axis=1)
 
-  pooled_text1_output_layer = masked_reduce_max(text1_output_layer, text1_input_mask)
-  pooled_text2_output_layer = masked_reduce_max(text2_output_layer, text2_input_mask)
+  pooled_text1_output_layer = masked_reduce_max(text1_output_layer, tf.to_float(text1_input_mask))
+  pooled_text2_output_layer = masked_reduce_max(text2_output_layer, tf.to_float(text2_input_mask))
   output_layer = tf.concat([pooled_text1_output_layer, pooled_text2_output_layer], -1)
 
   hidden_size = output_layer.shape[-1].value
