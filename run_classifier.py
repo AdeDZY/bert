@@ -1045,6 +1045,7 @@ def create_siamese_model(bert_config, is_training, input_ids, input_mask, segmen
                          labels, num_labels, use_one_hot_embeddings):
   """Creates a classification model."""
 
+  tf.logging.info("USING create_siamese_model")
   text1_input_ids = tf.where(tf.equal(segment_ids, 0), input_ids, tf.zeros_like(input_ids))
   text1_input_mask = tf.where(tf.equal(segment_ids, 0), input_mask, tf.zeros_like(input_mask))
 
