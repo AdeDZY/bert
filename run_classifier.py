@@ -426,7 +426,6 @@ class FormalMarcoProcessor(DataProcessor):
 class RobustProcessor(DataProcessor):
 
     def __init__(self):
-        self.max_train_example = 640000
         self.max_test_depth = 1000
 
     def get_train_examples(self, data_dir):
@@ -1210,6 +1209,7 @@ def main(_):
       "marco": MarcoProcessor,
       "binglogtitle": BingLogTitleProcessor,
       "binglogtitlesnippet": BingLogTitleSnippetProcessor,
+      "robust": RobustProcessor,
   }
 
   tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
