@@ -1041,6 +1041,60 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     return (loss, per_example_loss, logits, probabilities)
 
 
+def create_siamese_model(bert_config, is_training, input_ids, input_mask, segment_ids,
+                         labels, num_labels, use_one_hot_embeddings):
+  """Creates a classification model."""
+
+  text1_input_ids = tf.where(tf.equal(segment_ids, 0), input_ids, tf.zeros_like(input_ids))
+  text1_input_mask = tf.where(tf.equal(segment_ids, 0), input_mask, tf.zeros_like(input_mask))
+
+  text2_input_ids = tf.where(tf.equal(segment_ids, 1), input_ids, tf.zeros_like(input_ids))
+  text2_input_mask = tf.where(tf.equal(segment_ids, 1), input_mask, tf.zeros_like(input_mask))
+
+  model_text1 = modeling.BertModel(
+      config=bert_config,
+      is_training=is_training,
+      input_ids=text1_input_ids,
+      input_mask=text1_input_mask,
+      use_one_hot_embeddings=use_one_hot_embeddings)
+
+  model_text2 = modeling.BertConfig(
+      config=bert_config,
+      is_training=is_training,
+      input_ids=text2_input_ids,
+      input_mask=text2_input_mask,
+      use_one_hot_embeddings=use_one_hot_embeddings)
+
+  text1_output_layer = model_text1.get_pooled_output()
+  text2_output_layer = model_text2.get_pooled_output()
+  output_layer = tf.concat([text1_output_layer, text2_output_layer], -1)
+
+  hidden_size = output_layer.shape[-1].value
+
+  output_weights = tf.get_variable(
+      "output_weights", [num_labels, hidden_size],
+      initializer=tf.truncated_normal_initializer(stddev=0.02))
+
+  output_bias = tf.get_variable(
+      "output_bias", [num_labels], initializer=tf.zeros_initializer())
+
+  with tf.variable_scope("loss"):
+    if is_training:
+      # I.e., 0.1 dropout
+      output_layer = tf.nn.dropout(output_layer, keep_prob=0.9)
+
+    logits = tf.matmul(output_layer, output_weights, transpose_b=True)
+    logits = tf.nn.bias_add(logits, output_bias)
+    probabilities = tf.nn.softmax(logits, axis=-1)
+    log_probs = tf.nn.log_softmax(logits, axis=-1)
+
+    one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
+
+    per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
+    loss = tf.reduce_mean(per_example_loss)
+
+    return (loss, per_example_loss, logits, probabilities)
+
 def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
                      num_train_steps, num_warmup_steps, use_tpu,
                      use_one_hot_embeddings):
@@ -1065,7 +1119,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-    (total_loss, per_example_loss, logits, probabilities) = create_model(
+    (total_loss, per_example_loss, logits, probabilities) = create_siamese_model(
         bert_config, is_training, input_ids, input_mask, segment_ids, label_ids,
         num_labels, use_one_hot_embeddings)
 
