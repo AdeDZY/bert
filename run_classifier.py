@@ -302,7 +302,6 @@ class MarcoProcessor(DataProcessor):
             label = tokenization.convert_to_unicode("0")
             if (qid, docid) in qrels:
                 label = tokenization.convert_to_unicode("1")
-                print(qid, docid)
             guid = "dev-%d" % i
             examples.append(
                 InputExample(guid=guid, text_a=q, text_b=d, label=label)
@@ -383,7 +382,6 @@ class FormalMarcoProcessor(DataProcessor):
             label = tokenization.convert_to_unicode("0")
             if (qid, docid) in qrels:
                 label = tokenization.convert_to_unicode("1")
-                print(qid, docid)
             guid = "dev-%d" % i
             examples.append(
                 InputExample(guid=guid, text_a=q, text_b=d, label=label)
@@ -403,7 +401,6 @@ class FormalMarcoProcessor(DataProcessor):
             label = tokenization.convert_to_unicode("0")
             if (qid, docid) in qrels:
                 label = tokenization.convert_to_unicode("1")
-                print(qid, docid)
             guid = "dev-%d" % i
             examples.append(
                 InputExample(guid=guid, text_a=q, text_b=d, label=label)
@@ -449,7 +446,7 @@ class RobustProcessor(DataProcessor):
                 trec_line = items[0]
                 json_dict = json.loads('#'.join(items[1:]))
                 q = tokenization.convert_to_unicode(json_dict["query"])
-                d = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+                d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
                 qid, _, docid, r, _, _ = trec_line.strip().split(' ')
                 r = int(r)
                 if r > self.max_test_depth:
@@ -457,8 +454,7 @@ class RobustProcessor(DataProcessor):
                 label = tokenization.convert_to_unicode("0")
                 if (qid, docid) in qrels:
                     label = tokenization.convert_to_unicode("1")
-                    print(qid, docid)
-                guid = "dev-%d" % i
+                guid = "train-%s-%s" % (qid, docid)
                 examples.append(
                     InputExample(guid=guid, text_a=q, text_b=d, label=label)
                 )
@@ -477,7 +473,7 @@ class RobustProcessor(DataProcessor):
             trec_line = items[0]
             json_dict = json.loads('#'.join(items[1:]))
             q = tokenization.convert_to_unicode(json_dict["query"])
-            d = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+            d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
             qid, _, docid, r, _, _ = trec_line.strip().split(' ')
             r = int(r)
             if r > self.max_test_depth:
@@ -485,8 +481,7 @@ class RobustProcessor(DataProcessor):
             label = tokenization.convert_to_unicode("0")
             if (qid, docid) in qrels:
                 label = tokenization.convert_to_unicode("1")
-                print(qid, docid)
-            guid = "dev-%d" % i
+            guid = "dev-%s-%s" % (qid, docid)
             examples.append(
                 InputExample(guid=guid, text_a=q, text_b=d, label=label)
             )
@@ -504,7 +499,7 @@ class RobustProcessor(DataProcessor):
             trec_line = items[0]
             json_dict = json.loads('#'.join(items[1:]))
             q = tokenization.convert_to_unicode(json_dict["query"])
-            d = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+            d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
             qid, _, docid, r, _, _ = trec_line.strip().split(' ')
             r = int(r)
             if r > self.max_test_depth:
@@ -512,7 +507,7 @@ class RobustProcessor(DataProcessor):
             label = tokenization.convert_to_unicode("0")
             if (qid, docid) in qrels:
                 label = tokenization.convert_to_unicode("1")
-            guid = "dev-%d" % i
+            guid = "test-%s-%s" % (qid, docid)
             examples.append(
                 InputExample(guid=guid, text_a=q, text_b=d, label=label)
             )
@@ -522,8 +517,10 @@ class RobustProcessor(DataProcessor):
     def _read_qrel(self, qrel_file):
         qrels = set()
         for line in qrel_file:
-            qid, docid = line.strip().split('\t')
-            qrels.add((qid, docid))
+            qid, _, docid, rel = line.strip().split(' ')
+            rel = int(rel)
+            if rel > 0:
+                qrels.add((qid, docid))
         return qrels
 
     def get_labels(self):
@@ -1298,8 +1295,8 @@ def main(_):
 
   if FLAGS.do_train:
     train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
-    #file_based_convert_examples_to_features(
-    #    train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
+    file_based_convert_examples_to_features(
+        train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
     tf.logging.info("***** Running training *****")
     tf.logging.info("  Num examples = %d", len(train_examples))
     tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
@@ -1324,8 +1321,8 @@ def main(_):
         eval_examples.append(PaddingInputExample())
 
     eval_file = os.path.join(FLAGS.output_dir, "eval.tf_record")
-    #file_based_convert_examples_to_features(
-    #    eval_examples, label_list, FLAGS.max_seq_length, tokenizer, eval_file)
+    file_based_convert_examples_to_features(
+        eval_examples, label_list, FLAGS.max_seq_length, tokenizer, eval_file)
 
     tf.logging.info("***** Running evaluation *****")
     tf.logging.info("  Num examples = %d (%d actual, %d padding)",
@@ -1369,9 +1366,9 @@ def main(_):
         predict_examples.append(PaddingInputExample())
 
     predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
-    #file_based_convert_examples_to_features(predict_examples, label_list,
-    #                                        FLAGS.max_seq_length, tokenizer,
-    #                                        predict_file)
+    file_based_convert_examples_to_features(predict_examples, label_list,
+                                            FLAGS.max_seq_length, tokenizer,
+                                            predict_file)
 
     tf.logging.info("***** Running prediction*****")
     tf.logging.info("  Num examples = %d (%d actual, %d padding)",
