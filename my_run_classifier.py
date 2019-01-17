@@ -782,7 +782,7 @@ def convert_single_example(ex_index, example, label_list, max_seq1_length, max_s
     tf.logging.info("concat_tokens: %s" % " ".join(
         [tokenization.printable_text(x) for x in concat_tokens]))
     tf.logging.info("concat_ids: %s" % " ".join([str(x) for x in concat_ids]))
-    tf.logging.info("concat_mask: %s" % " ".join([str(x) for x in concat_tokens]))
+    tf.logging.info("concat_mask: %s" % " ".join([str(x) for x in concat_mask]))
     tf.logging.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
     tf.logging.info("label: %s (id = %d)" % (example.label, label_id))
 
@@ -845,7 +845,7 @@ def file_based_input_fn_builder(input_file, seq1_length, seq2_length, seqconcat_
       "text2_mask": tf.FixedLenFeature([seq2_length], tf.int64),
 
       "concat_ids": tf.FixedLenFeature([seqconcat_length], tf.int64),
-      "cocnat_mask": tf.FixedLenFeature([seqconcat_length], tf.int64),
+      "concat_mask": tf.FixedLenFeature([seqconcat_length], tf.int64),
       "segment_ids": tf.FixedLenFeature([seqconcat_length], tf.int64),
 
       "label_ids": tf.FixedLenFeature([], tf.int64),
