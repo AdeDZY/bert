@@ -1071,9 +1071,12 @@ def create_siamese_model(bert_config, is_training, input_ids, input_mask, segmen
 
   minus_mask = lambda x, m: x - tf.expand_dims(1.0 - m, axis=-1) * 1e30
   masked_reduce_max = lambda x, m: tf.reduce_max(minus_mask(x, m), axis=1)
+  mul_mask = lambda x, m: x * tf.expand_dims(m, axis=-1)
+  masked_reduce_mean = lambda x, m: tf.reduce_sum(mul_mask(x, m), axis=1) / (
+          tf.reduce_sum(m, axis=1, keepdims=True) + 1e-10)
 
-  pooled_text1_output_layer = masked_reduce_max(text1_output_layer, tf.to_float(text1_input_mask))
-  pooled_text2_output_layer = masked_reduce_max(text2_output_layer, tf.to_float(text2_input_mask))
+  pooled_text1_output_layer = masked_reduce_mean(text1_output_layer, tf.to_float(text1_input_mask))
+  pooled_text2_output_layer = masked_reduce_mean(text2_output_layer, tf.to_float(text2_input_mask))
   output_layer = tf.concat([pooled_text1_output_layer, pooled_text2_output_layer], -1)
 
   hidden_size = output_layer.shape[-1].value
@@ -1101,6 +1104,7 @@ def create_siamese_model(bert_config, is_training, input_ids, input_mask, segmen
     loss = tf.reduce_mean(per_example_loss)
 
     return (loss, per_example_loss, logits, probabilities)
+
 
 def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
                      num_train_steps, num_warmup_steps, use_tpu,
