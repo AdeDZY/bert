@@ -125,7 +125,7 @@ flags.DEFINE_integer(
     "num_tpu_cores", 8,
     "Only used if `use_tpu` is True. Total number of TPU cores to use.")
 
-SEQ_A_LEN = 10
+SEQ_A_LEN = 12
 
 class InputExample(object):
   """A single training/test example for simple sequence classification."""
