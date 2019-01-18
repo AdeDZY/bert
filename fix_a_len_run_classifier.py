@@ -635,7 +635,7 @@ def _pad_one_text(tokens, max_seq_length, tokenizer):
     tokens1 = []
     for token in tokens[0:min(max_seq_length - 1, len(tokens))]:
         tokens1.append(token)
-    tokens1.append("SEP")
+    tokens1.append("[SEP]")
     text_ids = tokenizer.convert_tokens_to_ids(tokens1)
 
     # The mask has 1 for real tokens and 0 for padding tokens. Only real
@@ -675,8 +675,8 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
   tokens_a, tokens_a_ids, tokens_a_mask = _pad_one_text(tokens_a, SEQ_A_LEN, tokenizer)
   tokens_b, tokens_b_ids, tokens_b_mask = _pad_one_text(tokens_b, max_seq_length - SEQ_A_LEN - 1, tokenizer)
 
-  tokens = ["CLS"] + tokens_a + tokens_b
-  input_ids = tokenizer.convert_tokens_to_ids(["CLS"]) + tokens_a_ids + tokens_b_ids
+  tokens = ["[CLS]"] + tokens_a + tokens_b
+  input_ids = tokenizer.convert_tokens_to_ids(["[CLS]"]) + tokens_a_ids + tokens_b_ids
   segment_ids = [0] * len(tokens_a + 1) + [1] * len(tokens_b)
   input_mask = [1] + tokens_a_mask + tokens_b_mask
 
