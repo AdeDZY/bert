@@ -125,7 +125,7 @@ flags.DEFINE_integer(
     "num_tpu_cores", 8,
     "Only used if `use_tpu` is True. Total number of TPU cores to use.")
 
-SEQ_A_LEN = 20
+SEQ_A_LEN = 10
 
 class InputExample(object):
   """A single training/test example for simple sequence classification."""
@@ -1034,10 +1034,6 @@ def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
 
   processors = {
-      "cola": ColaProcessor,
-      "mnli": MnliProcessor,
-      "mrpc": MrpcProcessor,
-      "xnli": XnliProcessor,
       "marco": MarcoProcessor,
       "binglogtitle": BingLogTitleProcessor,
       "binglogtitlesnippet": BingLogTitleSnippetProcessor,
