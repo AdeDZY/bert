@@ -635,7 +635,7 @@ def _pad_one_text(tokens, max_seq_length, tokenizer):
     tokens1 = []
     for token in tokens[0:min(max_seq_length - 1, len(tokens))]:
         tokens1.append(token)
-    tokens1.append(["SEP"])
+    tokens1.append("SEP")
     text_ids = tokenizer.convert_tokens_to_ids(tokens1)
 
     # The mask has 1 for real tokens and 0 for padding tokens. Only real
