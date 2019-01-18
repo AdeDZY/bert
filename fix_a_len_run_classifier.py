@@ -677,7 +677,7 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
 
   tokens = ["[CLS]"] + tokens_a + tokens_b
   input_ids = tokenizer.convert_tokens_to_ids(["[CLS]"]) + tokens_a_ids + tokens_b_ids
-  segment_ids = [0] * (len(tokens_a) + 1) + [1] * len(tokens_b)
+  segment_ids = [0] * (len(tokens_a_ids) + 1) + [1] * len(tokens_b_ids)
   input_mask = [1] + tokens_a_mask + tokens_b_mask
 
 
