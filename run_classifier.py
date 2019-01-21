@@ -457,7 +457,8 @@ class RobustProcessor(DataProcessor):
                 if r > self.max_train_depth:
                     continue
                 label = tokenization.convert_to_unicode("0")
-                if (qid, docid) in qrels:
+                if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
+                    print(qid, docid)
                     label = tokenization.convert_to_unicode("1")
                 guid = "train-%s-%s" % (qid, docid)
                 examples.append(
@@ -484,7 +485,7 @@ class RobustProcessor(DataProcessor):
             if r > self.max_test_depth:
                 continue
             label = tokenization.convert_to_unicode("0")
-            if (qid, docid) in qrels:
+            if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
                 label = tokenization.convert_to_unicode("1")
             guid = "dev-%s-%s" % (qid, docid)
             examples.append(
@@ -510,7 +511,7 @@ class RobustProcessor(DataProcessor):
             if r > self.max_test_depth:
                 continue
             label = tokenization.convert_to_unicode("0")
-            if (qid, docid) in qrels:
+            if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
                 label = tokenization.convert_to_unicode("1")
             guid = "test-%s-%s" % (qid, docid)
             examples.append(
@@ -1343,8 +1344,8 @@ def main(_):
         len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
     train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
-    #file_based_convert_examples_to_features(
-    #    train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
+    file_based_convert_examples_to_features(
+        train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
     #tf.logging.info("write to train.tf_record! exit. I am NOT training")
     #exit(-1)
 
