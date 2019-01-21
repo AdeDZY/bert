@@ -125,10 +125,7 @@ flags.DEFINE_integer(
     "num_tpu_cores", 8,
     "Only used if `use_tpu` is True. Total number of TPU cores to use.")
 
-flags.DEFINE_integer(
-    "fold", 3,
-    "run fold")
-
+SEQ_A_LEN = 12
 
 class InputExample(object):
   """A single training/test example for simple sequence classification."""
@@ -210,58 +207,10 @@ class DataProcessor(object):
       return lines
 
 
-class XnliProcessor(DataProcessor):
-  """Processor for the XNLI data set."""
-
-  def __init__(self):
-    self.language = "zh"
-
-  def get_train_examples(self, data_dir):
-    """See base class."""
-    lines = self._read_tsv(
-        os.path.join(data_dir, "multinli",
-                     "multinli.train.%s.tsv" % self.language))
-    examples = []
-    for (i, line) in enumerate(lines):
-      if i == 0:
-        continue
-      guid = "train-%d" % (i)
-      text_a = tokenization.convert_to_unicode(line[0])
-      text_b = tokenization.convert_to_unicode(line[1])
-      label = tokenization.convert_to_unicode(line[2])
-      if label == tokenization.convert_to_unicode("contradictory"):
-        label = tokenization.convert_to_unicode("contradiction")
-      examples.append(
-          InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
-    return examples
-
-  def get_dev_examples(self, data_dir):
-    """See base class."""
-    lines = self._read_tsv(os.path.join(data_dir, "xnli.dev.tsv"))
-    examples = []
-    for (i, line) in enumerate(lines):
-      if i == 0:
-        continue
-      guid = "dev-%d" % (i)
-      language = tokenization.convert_to_unicode(line[0])
-      if language != tokenization.convert_to_unicode(self.language):
-        continue
-      text_a = tokenization.convert_to_unicode(line[6])
-      text_b = tokenization.convert_to_unicode(line[7])
-      label = tokenization.convert_to_unicode(line[1])
-      examples.append(
-          InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
-    return examples
-
-  def get_labels(self):
-    """See base class."""
-    return ["contradiction", "entailment", "neutral"]
-
-
 class MarcoProcessor(DataProcessor):
 
     def __init__(self):
-        self.max_train_example = 640000 
+        self.max_train_example = 640000
         self.max_test_depth = 1000
 
     def get_train_examples(self, data_dir):
@@ -427,11 +376,10 @@ class FormalMarcoProcessor(DataProcessor):
 class RobustProcessor(DataProcessor):
 
     def __init__(self):
-        self.max_test_depth = 100
-        self.max_train_depth = 1000
+        self.max_test_depth = 1000
         self.n_folds = 5
-        self.fold = FLAGS.fold
-        self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 1)]
+        self.fold = 0
+        self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 2)]
         self.dev_fold = (self.fold + self.n_folds - 2) % self.n_folds + 1
         self.test_folds = (self.fold + self.n_folds - 1) % self.n_folds + 1
         tf.logging.info("Train Folds: {}".format(str(self.train_folds)))
@@ -454,7 +402,7 @@ class RobustProcessor(DataProcessor):
                 d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
                 qid, _, docid, r, _, _ = trec_line.strip().split(' ')
                 r = int(r)
-                if r > self.max_train_depth:
+                if r > self.max_test_depth:
                     continue
                 label = tokenization.convert_to_unicode("0")
                 if (qid, docid) in qrels:
@@ -682,126 +630,26 @@ class BingLogTitleSnippetProcessor(DataProcessor):
         return ["0", "1"]
 
 
-class MnliProcessor(DataProcessor):
-  """Processor for the MultiNLI data set (GLUE version)."""
+def _pad_one_text(tokens, max_seq_length, tokenizer):
+    # produce text_a
+    tokens1 = []
+    for token in tokens[0:min(max_seq_length - 1, len(tokens))]:
+        tokens1.append(token)
+    tokens1.append("[SEP]")
+    text_ids = tokenizer.convert_tokens_to_ids(tokens1)
 
-  def get_train_examples(self, data_dir):
-    """See base class."""
-    return self._create_examples(
-        self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+    # The mask has 1 for real tokens and 0 for padding tokens. Only real
+    # tokens are attended to.
+    text_mask = [1] * len(text_ids)
 
-  def get_dev_examples(self, data_dir):
-    """See base class."""
-    return self._create_examples(
-        self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")),
-        "dev_matched")
+    # Zero-pad up to the sequence length.
+    while len(text_ids) < max_seq_length:
+        text_ids.append(0)
+        text_mask.append(0)
 
-  def get_test_examples(self, data_dir):
-    """See base class."""
-    return self._create_examples(
-        self._read_tsv(os.path.join(data_dir, "test_matched.tsv")), "test")
-
-  def get_labels(self):
-    """See base class."""
-    return ["contradiction", "entailment", "neutral"]
-
-  def _create_examples(self, lines, set_type):
-    """Creates examples for the training and dev sets."""
-    examples = []
-    for (i, line) in enumerate(lines):
-      if i == 0:
-        continue
-      guid = "%s-%s" % (set_type, tokenization.convert_to_unicode(line[0]))
-      text_a = tokenization.convert_to_unicode(line[8])
-      text_b = tokenization.convert_to_unicode(line[9])
-      if set_type == "test":
-        label = "contradiction"
-      else:
-        label = tokenization.convert_to_unicode(line[-1])
-      examples.append(
-          InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
-    return examples
-
-
-class MrpcProcessor(DataProcessor):
-  """Processor for the MRPC data set (GLUE version)."""
-
-  def get_train_examples(self, data_dir):
-    """See base class."""
-    return self._create_examples(
-        self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
-
-  def get_dev_examples(self, data_dir):
-    """See base class."""
-    return self._create_examples(
-        self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
-
-  def get_test_examples(self, data_dir):
-    """See base class."""
-    return self._create_examples(
-        self._read_tsv(os.path.join(data_dir, "test.tsv")), "test")
-
-  def get_labels(self):
-    """See base class."""
-    return ["0", "1"]
-
-  def _create_examples(self, lines, set_type):
-    """Creates examples for the training and dev sets."""
-    examples = []
-    for (i, line) in enumerate(lines):
-      if i == 0:
-        continue
-      guid = "%s-%s" % (set_type, i)
-      text_a = tokenization.convert_to_unicode(line[3])
-      text_b = tokenization.convert_to_unicode(line[4])
-      if set_type == "test":
-        label = "0"
-      else:
-        label = tokenization.convert_to_unicode(line[0])
-      examples.append(
-          InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
-    return examples
-
-
-class ColaProcessor(DataProcessor):
-  """Processor for the CoLA data set (GLUE version)."""
-
-  def get_train_examples(self, data_dir):
-    """See base class."""
-    return self._create_examples(
-        self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
-
-  def get_dev_examples(self, data_dir):
-    """See base class."""
-    return self._create_examples(
-        self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
-
-  def get_test_examples(self, data_dir):
-    """See base class."""
-    return self._create_examples(
-        self._read_tsv(os.path.join(data_dir, "test.tsv")), "test")
-
-  def get_labels(self):
-    """See base class."""
-    return ["0", "1"]
-
-  def _create_examples(self, lines, set_type):
-    """Creates examples for the training and dev sets."""
-    examples = []
-    for (i, line) in enumerate(lines):
-      # Only the test set has a header
-      if set_type == "test" and i == 0:
-        continue
-      guid = "%s-%s" % (set_type, i)
-      if set_type == "test":
-        text_a = tokenization.convert_to_unicode(line[1])
-        label = "0"
-      else:
-        text_a = tokenization.convert_to_unicode(line[3])
-        label = tokenization.convert_to_unicode(line[1])
-      examples.append(
-          InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
-    return examples
+    assert len(text_ids) == max_seq_length
+    assert len(text_mask) == max_seq_length
+    return tokens1, text_ids, text_mask
 
 
 def convert_single_example(ex_index, example, label_list, max_seq_length,
@@ -821,19 +669,17 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
     label_map[label] = i
 
   tokens_a = tokenizer.tokenize(example.text_a)
-  tokens_b = None
-  if example.text_b:
-    tokens_b = tokenizer.tokenize(example.text_b)
+  tokens_b = tokenizer.tokenize(example.text_b)
 
-  if tokens_b:
-    # Modifies `tokens_a` and `tokens_b` in place so that the total
-    # length is less than the specified length.
-    # Account for [CLS], [SEP], [SEP] with "- 3"
-    _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
-  else:
-    # Account for [CLS] and [SEP] with "- 2"
-    if len(tokens_a) > max_seq_length - 2:
-      tokens_a = tokens_a[0:(max_seq_length - 2)]
+  # pad `tokens_a` to a fixed length
+  tokens_a, tokens_a_ids, tokens_a_mask = _pad_one_text(tokens_a, SEQ_A_LEN, tokenizer)
+  tokens_b, tokens_b_ids, tokens_b_mask = _pad_one_text(tokens_b, max_seq_length - SEQ_A_LEN - 1, tokenizer)
+
+  tokens = ["[CLS]"] + tokens_a + tokens_b
+  input_ids = tokenizer.convert_tokens_to_ids(["[CLS]"]) + tokens_a_ids + tokens_b_ids
+  segment_ids = [0] * (len(tokens_a_ids) + 1) + [1] * len(tokens_b_ids)
+  input_mask = [1] + tokens_a_mask + tokens_b_mask
+
 
   # The convention in BERT is:
   # (a) For sequence pairs:
@@ -853,38 +699,8 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
   # For classification tasks, the first vector (corresponding to [CLS]) is
   # used as the "sentence vector". Note that this only makes sense because
   # the entire model is fine-tuned.
-  tokens = []
-  segment_ids = []
-  tokens.append("[CLS]")
-  segment_ids.append(0)
-  for token in tokens_a:
-    tokens.append(token)
-    segment_ids.append(0)
-  tokens.append("[SEP]")
-  segment_ids.append(0)
 
-  if tokens_b:
-    for token in tokens_b:
-      tokens.append(token)
-      segment_ids.append(1)
-    tokens.append("[SEP]")
-    segment_ids.append(1)
 
-  input_ids = tokenizer.convert_tokens_to_ids(tokens)
-
-  # The mask has 1 for real tokens and 0 for padding tokens. Only real
-  # tokens are attended to.
-  input_mask = [1] * len(input_ids)
-
-  # Zero-pad up to the sequence length.
-  while len(input_ids) < max_seq_length:
-    input_ids.append(0)
-    input_mask.append(0)
-    segment_ids.append(0)
-
-  assert len(input_ids) == max_seq_length
-  assert len(input_mask) == max_seq_length
-  assert len(segment_ids) == max_seq_length
 
   label_id = label_map[example.label]
   if ex_index < 5:
@@ -896,6 +712,10 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
     tf.logging.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
     tf.logging.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
     tf.logging.info("label: %s (id = %d)" % (example.label, label_id))
+
+  assert len(input_ids) == max_seq_length, "%d, %d" % (len(input_ids), max_seq_length)
+  assert len(input_mask) == max_seq_length, "%d, %d" % (len(input_mask), max_seq_length)
+  assert len(segment_ids) == max_seq_length, "%d, %d" % (len(segment_ids), max_seq_length)
 
   feature = InputFeatures(
       input_ids=input_ids,
@@ -1018,71 +838,6 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
   # If you want to use the token-level output, use model.get_sequence_output()
   # instead.
   output_layer = model.get_pooled_output()
-
-  hidden_size = output_layer.shape[-1].value
-
-  output_weights = tf.get_variable(
-      "output_weights", [num_labels, hidden_size],
-      initializer=tf.truncated_normal_initializer(stddev=0.02))
-
-  output_bias = tf.get_variable(
-      "output_bias", [num_labels], initializer=tf.zeros_initializer())
-
-  with tf.variable_scope("loss"):
-    if is_training:
-      # I.e., 0.1 dropout
-      output_layer = tf.nn.dropout(output_layer, keep_prob=0.9)
-
-    logits = tf.matmul(output_layer, output_weights, transpose_b=True)
-    logits = tf.nn.bias_add(logits, output_bias)
-    probabilities = tf.nn.softmax(logits, axis=-1)
-    log_probs = tf.nn.log_softmax(logits, axis=-1)
-
-    one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
-
-    per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
-    loss = tf.reduce_mean(per_example_loss)
-
-    return (loss, per_example_loss, logits, probabilities)
-
-
-def create_siamese_model(bert_config, is_training, input_ids, input_mask, segment_ids,
-                         labels, num_labels, use_one_hot_embeddings):
-  """Creates a classification model."""
-
-  tf.logging.info("USING create_siamese_model")
-  text1_input_ids = tf.where(tf.equal(segment_ids, 0), input_ids, tf.zeros_like(input_ids))
-  text1_input_mask = tf.where(tf.equal(segment_ids, 0), input_mask, tf.zeros_like(input_mask))
-
-  text2_input_ids = tf.where(tf.equal(segment_ids, 1), input_ids, tf.zeros_like(input_ids))
-  text2_input_mask = tf.where(tf.equal(segment_ids, 1), input_mask, tf.zeros_like(input_mask))
-
-  model_text1 = modeling.BertModel(
-      config=bert_config,
-      is_training=is_training,
-      input_ids=text1_input_ids,
-      input_mask=text1_input_mask,
-      use_one_hot_embeddings=use_one_hot_embeddings)
-
-  model_text2 = modeling.BertModel(
-      config=bert_config,
-      is_training=is_training,
-      input_ids=text2_input_ids,
-      input_mask=text2_input_mask,
-      use_one_hot_embeddings=use_one_hot_embeddings)
-
-  text1_output_layer = model_text1.get_sequence_output() # [batch_size, seq_length, hidden_size]
-  text2_output_layer = model_text2.get_sequence_output()
-
-  minus_mask = lambda x, m: x - tf.expand_dims(1.0 - m, axis=-1) * 1e30
-  masked_reduce_max = lambda x, m: tf.reduce_max(minus_mask(x, m), axis=1)
-  mul_mask = lambda x, m: x * tf.expand_dims(m, axis=-1)
-  masked_reduce_mean = lambda x, m: tf.reduce_sum(mul_mask(x, m), axis=1) / (
-          tf.reduce_sum(m, axis=1, keepdims=True) + 1e-10)
-
-  pooled_text1_output_layer = masked_reduce_mean(text1_output_layer, tf.to_float(text1_input_mask))
-  pooled_text2_output_layer = masked_reduce_mean(text2_output_layer, tf.to_float(text2_input_mask))
-  output_layer = tf.concat([pooled_text1_output_layer, pooled_text2_output_layer], -1)
 
   hidden_size = output_layer.shape[-1].value
 
@@ -1279,10 +1034,6 @@ def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
 
   processors = {
-      "cola": ColaProcessor,
-      "mnli": MnliProcessor,
-      "mrpc": MrpcProcessor,
-      "xnli": XnliProcessor,
       "marco": MarcoProcessor,
       "binglogtitle": BingLogTitleProcessor,
       "binglogtitlesnippet": BingLogTitleSnippetProcessor,
@@ -1342,14 +1093,7 @@ def main(_):
     num_train_steps = int(
         len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
-    train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
-    #file_based_convert_examples_to_features(
-    #    train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
-    #tf.logging.info("write to train.tf_record! exit. I am NOT training")
-    #exit(-1)
 
-  # If TPU is not available, this will fall back to normal Estimator on CPU
-  # or GPU.
   model_fn = model_fn_builder(
       bert_config=bert_config,
       num_labels=len(label_list),
@@ -1360,6 +1104,8 @@ def main(_):
       use_tpu=FLAGS.use_tpu,
       use_one_hot_embeddings=FLAGS.use_tpu)
 
+  # If TPU is not available, this will fall back to normal Estimator on CPU
+  # or GPU.
   estimator = tf.contrib.tpu.TPUEstimator(
       use_tpu=FLAGS.use_tpu,
       model_fn=model_fn,
@@ -1367,8 +1113,11 @@ def main(_):
       train_batch_size=FLAGS.train_batch_size,
       eval_batch_size=FLAGS.eval_batch_size,
       predict_batch_size=FLAGS.predict_batch_size)
-  
+
   if FLAGS.do_train:
+    train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
+    file_based_convert_examples_to_features(
+        train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
     tf.logging.info("***** Running training *****")
     tf.logging.info("  Num examples = %d", len(train_examples))
     tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
