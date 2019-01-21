@@ -125,6 +125,10 @@ flags.DEFINE_integer(
     "num_tpu_cores", 8,
     "Only used if `use_tpu` is True. Total number of TPU cores to use.")
 
+flags.DEFINE_integer(
+    "fold", 3,
+    "run fold")
+
 
 class InputExample(object):
   """A single training/test example for simple sequence classification."""
@@ -423,10 +427,11 @@ class FormalMarcoProcessor(DataProcessor):
 class RobustProcessor(DataProcessor):
 
     def __init__(self):
-        self.max_test_depth = 1000
+        self.max_test_depth = 100
+        self.max_train_depth = 1000
         self.n_folds = 5
-        self.fold = 0
-        self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 2)]
+        self.fold = FLAGS.fold
+        self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 1)]
         self.dev_fold = (self.fold + self.n_folds - 2) % self.n_folds + 1
         self.test_folds = (self.fold + self.n_folds - 1) % self.n_folds + 1
         tf.logging.info("Train Folds: {}".format(str(self.train_folds)))
@@ -449,7 +454,7 @@ class RobustProcessor(DataProcessor):
                 d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
                 qid, _, docid, r, _, _ = trec_line.strip().split(' ')
                 r = int(r)
-                if r > self.max_test_depth:
+                if r > self.max_train_depth:
                     continue
                 label = tokenization.convert_to_unicode("0")
                 if (qid, docid) in qrels:
@@ -1126,7 +1131,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-    (total_loss, per_example_loss, logits, probabilities) = create_siamese_model(
+    (total_loss, per_example_loss, logits, probabilities) = create_model(
         bert_config, is_training, input_ids, input_mask, segment_ids, label_ids,
         num_labels, use_one_hot_embeddings)
 
@@ -1333,7 +1338,14 @@ def main(_):
     num_train_steps = int(
         len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
+    train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
+    #file_based_convert_examples_to_features(
+    #    train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
+    #tf.logging.info("write to train.tf_record! exit. I am NOT training")
+    #exit(-1)
 
+  # If TPU is not available, this will fall back to normal Estimator on CPU
+  # or GPU.
   model_fn = model_fn_builder(
       bert_config=bert_config,
       num_labels=len(label_list),
@@ -1344,8 +1356,6 @@ def main(_):
       use_tpu=FLAGS.use_tpu,
       use_one_hot_embeddings=FLAGS.use_tpu)
 
-  # If TPU is not available, this will fall back to normal Estimator on CPU
-  # or GPU.
   estimator = tf.contrib.tpu.TPUEstimator(
       use_tpu=FLAGS.use_tpu,
       model_fn=model_fn,
@@ -1353,11 +1363,8 @@ def main(_):
       train_batch_size=FLAGS.train_batch_size,
       eval_batch_size=FLAGS.eval_batch_size,
       predict_batch_size=FLAGS.predict_batch_size)
-
+  
   if FLAGS.do_train:
-    train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
-    file_based_convert_examples_to_features(
-        train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
     tf.logging.info("***** Running training *****")
     tf.logging.info("  Num examples = %d", len(train_examples))
     tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
