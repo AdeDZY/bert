@@ -130,6 +130,11 @@ flags.DEFINE_integer(
     "run fold")
 
 
+flags.DEFINE_integer(
+    "query_field", None,
+    "None if no field, else title, desc, narr, question")
+
+
 class InputExample(object):
   """A single training/test example for simple sequence classification."""
 
@@ -431,6 +436,7 @@ class RobustProcessor(DataProcessor):
         self.max_train_depth = 1000
         self.n_folds = 5
         self.fold = FLAGS.fold
+        self.query_field = FLAGS.query_field
         self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 1)]
         self.dev_fold = (self.fold + self.n_folds - 2) % self.n_folds + 1
         self.test_folds = (self.fold + self.n_folds - 1) % self.n_folds + 1
@@ -451,6 +457,10 @@ class RobustProcessor(DataProcessor):
                 trec_line = items[0]
                 json_dict = json.loads('#'.join(items[1:]))
                 q = tokenization.convert_to_unicode(json_dict["query"])
+                if self.query_field is not None:
+                    q = q[self.query_field]
+                assert type(q) == str, "q type is {}, should be str".format(type(q))
+
                 d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
                 qid, _, docid, r, _, _ = trec_line.strip().split(' ')
                 r = int(r)
@@ -479,6 +489,10 @@ class RobustProcessor(DataProcessor):
             trec_line = items[0]
             json_dict = json.loads('#'.join(items[1:]))
             q = tokenization.convert_to_unicode(json_dict["query"])
+            if self.query_field is not None:
+                q = q[self.query_field]
+            assert type(q) == str, "q type is {}, should be str".format(type(q))
+
             d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
             qid, _, docid, r, _, _ = trec_line.strip().split(' ')
             r = int(r)
@@ -505,6 +519,10 @@ class RobustProcessor(DataProcessor):
             trec_line = items[0]
             json_dict = json.loads('#'.join(items[1:]))
             q = tokenization.convert_to_unicode(json_dict["query"])
+            if self.query_field is not None:
+                q = q[self.query_field]
+            assert type(q) == str, "q type is {}, should be str".format(type(q))
+
             d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
             qid, _, docid, r, _, _ = trec_line.strip().split(' ')
             r = int(r)
