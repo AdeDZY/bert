@@ -93,7 +93,7 @@ flags.DEFINE_float(
     "Proportion of training to perform linear learning rate warmup for. "
     "E.g., 0.1 = 10% of training.")
 
-flags.DEFINE_integer("save_checkpoints_steps", 1000,
+flags.DEFINE_integer("save_checkpoints_steps", 20000,
                      "How often to save the model checkpoint.")
 
 flags.DEFINE_integer("iterations_per_loop", 1000,
@@ -130,7 +130,7 @@ flags.DEFINE_integer(
     "run fold")
 
 
-flags.DEFINE_integer(
+flags.DEFINE_string(
     "query_field", None,
     "None if no field, else title, desc, narr, question")
 
@@ -456,10 +456,11 @@ class RobustProcessor(DataProcessor):
                 items = line.strip().split('#')
                 trec_line = items[0]
                 json_dict = json.loads('#'.join(items[1:]))
-                q = tokenization.convert_to_unicode(json_dict["query"])
+                q = json_dict["query"]
                 if self.query_field is not None:
                     q = q[self.query_field]
                 assert type(q) == str, "q type is {}, should be str".format(type(q))
+                q = tokenization.convert_to_unicode(q)
 
                 d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
                 qid, _, docid, r, _, _ = trec_line.strip().split(' ')
@@ -488,10 +489,11 @@ class RobustProcessor(DataProcessor):
             items = line.strip().split('#')
             trec_line = items[0]
             json_dict = json.loads('#'.join(items[1:]))
-            q = tokenization.convert_to_unicode(json_dict["query"])
+            q = json_dict["query"]
             if self.query_field is not None:
                 q = q[self.query_field]
             assert type(q) == str, "q type is {}, should be str".format(type(q))
+            q = tokenization.convert_to_unicode(q)
 
             d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
             qid, _, docid, r, _, _ = trec_line.strip().split(' ')
@@ -518,10 +520,11 @@ class RobustProcessor(DataProcessor):
             items = line.strip().split('#')
             trec_line = items[0]
             json_dict = json.loads('#'.join(items[1:]))
-            q = tokenization.convert_to_unicode(json_dict["query"])
+            q = json_dict["query"]
             if self.query_field is not None:
                 q = q[self.query_field]
             assert type(q) == str, "q type is {}, should be str".format(type(q))
+            q = tokenization.convert_to_unicode(q)
 
             d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
             qid, _, docid, r, _, _ = trec_line.strip().split(' ')
@@ -1362,8 +1365,8 @@ def main(_):
         len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
     train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
-    file_based_convert_examples_to_features(
-        train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
+    #file_based_convert_examples_to_features(
+    #    train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
     #tf.logging.info("write to train.tf_record! exit. I am NOT training")
     #exit(-1)
 

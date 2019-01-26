@@ -129,7 +129,7 @@ flags.DEFINE_integer(
     "fold", 3,
     "run fold")
 
-flags.DEFINE_integer(
+flags.DEFINE_string(
     "query_field", None,
     "None if no field, else title, desc, narr, question")
 
@@ -233,7 +233,7 @@ class RobustProcessor(DataProcessor):
         train_files = ["{}.trec.with_json".format(i) for i in self.train_folds]
         qrel_file = open(os.path.join(data_dir, "qrels"))
         qrels = self._read_qrel(qrel_file)
-        q_fields = FLAGS.query_field.split('_')
+        q_fields = FLAGS.query_field.split(' ')
         tf.logging.info("Using query fields {}".format(' '.join(q_fields)))
 
         for file_name in train_files:
@@ -242,8 +242,8 @@ class RobustProcessor(DataProcessor):
                 items = line.strip().split('#')
                 trec_line = items[0]
                 json_dict = json.loads('#'.join(items[1:]))
-                q = tokenization.convert_to_unicode(json_dict["query"])
-                q_text_list = [q[field] for field in q_fields]
+                q = json_dict["query"]
+                q_text_list = [tokenization.convert_to_unicode(q[field]) for field in q_fields]
                 d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
 
                 qid, _, docid, r, _, _ = trec_line.strip().split(' ')
@@ -267,15 +267,15 @@ class RobustProcessor(DataProcessor):
         dev_file = open(os.path.join(data_dir, "{}.trec.with_json".format(self.dev_folds)))
         qrel_file = open(os.path.join(data_dir, "qrels"))
         qrels = self._read_qrel(qrel_file)
-        q_fields = FLAGS.query_field.split('_')
+        q_fields = FLAGS.query_field.split(' ')
         tf.logging.info("Using query fields {}".format(' '.join(q_fields)))
 
         for i, line in enumerate(dev_file):
             items = line.strip().split('#')
             trec_line = items[0]
             json_dict = json.loads('#'.join(items[1:]))
-            q = tokenization.convert_to_unicode(json_dict["query"])
-            q_text_list = [q[field] for field in q_fields]
+            q = json_dict["query"]
+            q_text_list = [tokenization.convert_to_unicode(q[field]) for field in q_fields]
 
             d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
             qid, _, docid, r, _, _ = trec_line.strip().split(' ')
@@ -297,15 +297,15 @@ class RobustProcessor(DataProcessor):
         dev_file = open(os.path.join(data_dir, "{}.trec.with_json".format(self.test_folds)))
         qrel_file = open(os.path.join(data_dir, "qrels"))
         qrels = self._read_qrel(qrel_file)
-        q_fields = FLAGS.query_field.split('_')
+        q_fields = FLAGS.query_field.split(' ')
         tf.logging.info("Using query fields {}".format(' '.join(q_fields)))
 
         for i, line in enumerate(dev_file):
             items = line.strip().split('#')
             trec_line = items[0]
             json_dict = json.loads('#'.join(items[1:]))
-            q = tokenization.convert_to_unicode(json_dict["query"])
-            q_text_list = [q[field] for field in q_fields]
+            q = json_dict["query"]
+            q_text_list = [tokenization.convert_to_unicode(q[field]) for field in q_fields]
 
             d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
             qid, _, docid, r, _, _ = trec_line.strip().split(' ')
@@ -809,8 +809,8 @@ def main(_):
         train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
         file_based_convert_examples_to_features(
             train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
-        # tf.logging.info("write to train.tf_record! exit. I am NOT training")
-        # exit(-1)
+        tf.logging.info("write to train.tf_record! exit. I am NOT training")
+        exit(-1)
 
     # If TPU is not available, this will fall back to normal Estimator on CPU
     # or GPU.
