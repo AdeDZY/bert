@@ -93,7 +93,7 @@ flags.DEFINE_float(
     "Proportion of training to perform linear learning rate warmup for. "
     "E.g., 0.1 = 10% of training.")
 
-flags.DEFINE_integer("save_checkpoints_steps", 20000,
+flags.DEFINE_integer("save_checkpoints_steps", 40000,
                      "How often to save the model checkpoint.")
 
 flags.DEFINE_integer("iterations_per_loop", 1000,
@@ -453,6 +453,7 @@ class RobustProcessor(DataProcessor):
         for file_name in train_files:
             train_file = open(os.path.join(data_dir, file_name))
             for i, line in enumerate(train_file):
+                if random.random() > 0.33: continue
                 items = line.strip().split('#')
                 trec_line = items[0]
                 json_dict = json.loads('#'.join(items[1:]))
@@ -469,7 +470,6 @@ class RobustProcessor(DataProcessor):
                     continue
                 label = tokenization.convert_to_unicode("0")
                 if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
-                    print(qid, docid)
                     label = tokenization.convert_to_unicode("1")
                 guid = "train-%s-%s" % (qid, docid)
                 examples.append(
@@ -1365,8 +1365,8 @@ def main(_):
         len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
     train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
-    #file_based_convert_examples_to_features(
-    #    train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
+    file_based_convert_examples_to_features(
+        train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
     #tf.logging.info("write to train.tf_record! exit. I am NOT training")
     #exit(-1)
 

@@ -93,7 +93,7 @@ flags.DEFINE_float(
     "Proportion of training to perform linear learning rate warmup for. "
     "E.g., 0.1 = 10% of training.")
 
-flags.DEFINE_integer("save_checkpoints_steps", 1000,
+flags.DEFINE_integer("save_checkpoints_steps", 20000,
                      "How often to save the model checkpoint.")
 
 flags.DEFINE_integer("iterations_per_loop", 1000,
@@ -252,7 +252,6 @@ class RobustProcessor(DataProcessor):
                     continue
                 label = tokenization.convert_to_unicode("0")
                 if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
-                    print(qid, docid)
                     label = tokenization.convert_to_unicode("1")
                 guid = "train-%s-%s" % (qid, docid)
                 examples.append(
@@ -287,7 +286,7 @@ class RobustProcessor(DataProcessor):
                 label = tokenization.convert_to_unicode("1")
             guid = "dev-%s-%s" % (qid, docid)
             examples.append(
-                InputExample(guid=guid, text_a=q_text_list, text_b=d, label=label)
+                InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
             )
         dev_file.close()
         return examples
@@ -317,7 +316,7 @@ class RobustProcessor(DataProcessor):
                 label = tokenization.convert_to_unicode("1")
             guid = "test-%s-%s" % (qid, docid)
             examples.append(
-                InputExample(guid=guid, text_a=q_text_list, text_b=d, label=label)
+                InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
             )
         dev_file.close()
         return examples
@@ -809,8 +808,8 @@ def main(_):
         train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
         file_based_convert_examples_to_features(
             train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
-        tf.logging.info("write to train.tf_record! exit. I am NOT training")
-        exit(-1)
+        #tf.logging.info("write to train.tf_record! exit. I am NOT training")
+        #exit(-1)
 
     # If TPU is not available, this will fall back to normal Estimator on CPU
     # or GPU.
