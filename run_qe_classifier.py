@@ -905,6 +905,7 @@ def main(_):
 
     processors = {
         "robust": RobustProcessor,
+        "clueweb": ClueWebProcessor,
     }
 
     tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
