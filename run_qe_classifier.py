@@ -510,6 +510,7 @@ def convert_single_example(ex_index, example, label_list, max_seq_length,
         tokens = tokenizer.tokenize(text)
         tokens_a += tokens
         tokens_a.append('[SEP]')
+    tokens_a = tokens_a[:-1]
 
     tokens_b = None
     if example.text_b:
