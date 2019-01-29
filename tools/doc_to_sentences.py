@@ -13,17 +13,18 @@ if __name__ == '__main__':
     nlp = spacy.load('en_core_web_sm')
 
     # Process whole documents
-    with open(args.input_doc_file) as fin, open(args.output_file) as fout:
-        text = fin.readline()
-        doc = nlp(text)
-        for sent in doc.sents:
-            sent = sent.string.strip()
-            if random.random() < args.truncate_rate:
-                words = sent.split(' ')
-                t = random.randint(len(words)-1)
-                sent = ' '.join(words[0:t])
-            fout.write(sent)
+    with open(args.input_doc_file) as fin, open(args.output_file, 'w') as fout:
+        for line in fin:
+            text = fin.readline()
+            doc = nlp(text)
+            for sent in doc.sents:
+                sent = sent.string.strip()
+                if random.random() < args.truncate_rate:
+                    words = sent.split(' ')
+                    t = random.randint(0, len(words)-1)
+                    sent = ' '.join(words[0:t])
+                fout.write(sent)
+                fout.write('\n')
             fout.write('\n')
-        fout.write('\n')
 
 
