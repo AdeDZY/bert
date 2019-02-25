@@ -57,7 +57,7 @@ def json_to_trec(dataset_file_path: str,
                 scores = [s for s, _ in rankings[qid][docid]]
                 passages = [p for _, p in rankings[qid][docid]]
                 max_score_idx = np.argmax(scores)
-                max_score = np.mean(scores) #scores[max_score_idx]
+                max_score = scores[max_score_idx]
                 max_passage = passages[max_score_idx] 
                 #max_score_idx = np.argsort(scores)[-3:]
                 #max_score = np.mean([scores[i] for i in max_score_idx])
