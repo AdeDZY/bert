@@ -79,9 +79,9 @@ flags.DEFINE_bool(
 
 flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
 
-flags.DEFINE_integer("eval_batch_size", 32, "Total batch size for eval.")
+flags.DEFINE_integer("eval_batch_size", 16, "Total batch size for eval.")
 
-flags.DEFINE_integer("predict_batch_size", 32, "Total batch size for predict.")
+flags.DEFINE_integer("predict_batch_size", 16, "Total batch size for predict.")
 
 flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
 
@@ -533,7 +533,6 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
         logits = tf.matmul(bert_output_layer, output_weights, transpose_b=True)  # [batch_size * seq_length, 1]
         logits = tf.nn.bias_add(logits, output_bias)  # [batch_size * seq_length, 1]
         logits = tf.reshape(logits, [-1, seq_length])
-        probabilities = tf.sigmoid(logits)
         loss = tf.losses.mean_squared_error(
             labels=target_weights,
             predictions=logits,
@@ -543,7 +542,9 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
             labels=target_weights,
             predictions=logits,
             weights=target_mask,
-            reduction=None)
+            reduction=tf.losses.Reduction.NONE)
+        per_example_loss = tf.reduce_sum(per_example_loss, axis=-1)
+        masked_logits = logits * tf.to_float(target_mask)
 
         #probabilities = tf.nn.sigmoid(logits) # [batch_size * seq_length, hidden_size]
         # log_probs = tf.nn.log_softmax(logits, axis=-1)
@@ -551,7 +552,7 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
         #per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
         #loss = tf.reduce_mean(per_example_loss)
 
-        return loss, per_example_loss, logits, probabilities
+        return loss, per_example_loss, masked_logits
 
 
 def model_fn_builder(bert_config, init_checkpoint, learning_rate,
@@ -580,7 +581,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
 
         is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-        (total_loss, per_example_loss, logits, probabilities) = create_model(
+        (total_loss, per_example_loss, logits) = create_model(
             bert_config, is_training, input_ids, input_mask, segment_ids, target_weights, target_mask, use_one_hot_embeddings)
 
         tvars = tf.trainable_variables()
@@ -619,10 +620,10 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
                 train_op=train_op,
                 scaffold_fn=scaffold_fn)
         elif mode == tf.estimator.ModeKeys.EVAL:
-
-            def metric_fn(total_loss):
+            def metric_fn(per_example_loss):
+                loss = tf.metrics.mean(values=per_example_loss)
                 return {
-                    "eval_loss": total_loss,
+                    "eval_loss": loss
                 }
 
             eval_metrics = (metric_fn, [total_loss])
@@ -634,7 +635,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
         else:
             output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
-                predictions={"logits": logits},
+                predictions={"logits": logits, "target_weights": target_weights},
                 scaffold_fn=scaffold_fn)
         return output_spec
 
@@ -898,11 +899,11 @@ def main(_):
             num_written_lines = 0
             tf.logging.info("***** Predict results *****")
             for (i, prediction) in enumerate(result):
-                probabilities = prediction["probabilities"]
+                targets = prediction["target_weights"]
                 logits = prediction["logits"]
                 if i >= num_actual_predict_examples:
                     break
-                output_line = str(logits) + '\t' + str(probabilities) + "\n"
+                output_line = str(logits) + '\t' + str(targets) + "\n"
                 writer.write(output_line)
                 num_written_lines += 1
         assert num_written_lines == num_actual_predict_examples
