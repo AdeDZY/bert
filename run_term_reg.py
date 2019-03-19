@@ -614,9 +614,9 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
                 scaffold_fn=scaffold_fn)
         elif mode == tf.estimator.ModeKeys.EVAL:
 
-            def metric_fn(loss):
+            def metric_fn(total_loss):
                 return {
-                    "eval_loss": loss,
+                    "eval_loss": total_loss,
                 }
 
             eval_metrics = (metric_fn, [total_loss])
@@ -628,7 +628,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
         else:
             output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
-                predictions={"probabilities": probabilities},
+                predictions={"logits": logits},
                 scaffold_fn=scaffold_fn)
         return output_spec
 
