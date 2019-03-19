@@ -513,9 +513,9 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     # instead.
     bert_output_layer = model.get_sequence_output()  # [batch_size, seq_length, hidden_size]
     hidden_size = bert_output_layer.shape[-1].value
-    batch_size = bert_output_layer.shape[0].value
+    seq_length = bert_output_layer.shape[-2].value
     tf.logging.info(hidden_size)
-    tf.logging.info(batch_size)
+    tf.logging.info(seq_length)
     bert_output_layer = tf.reshape(bert_output_layer, [-1, hidden_size])  # [batch_size * seq_length, hidden_size]
 
     output_weights = tf.get_variable(
@@ -532,14 +532,18 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
 
         logits = tf.matmul(bert_output_layer, output_weights, transpose_b=True)  # [batch_size * seq_length, 1]
         logits = tf.nn.bias_add(logits, output_bias)  # [batch_size * seq_length, 1]
-        logits = tf.reshape(logits, [batch_size, -1])
+        logits = tf.reshape(logits, [-1, seq_length])
         probabilities = tf.sigmoid(logits)
         loss = tf.losses.mean_squared_error(
             labels=target_weights,
             predictions=logits,
             weights=target_mask,
             reduction=tf.losses.Reduction.SUM_BY_NONZERO_WEIGHTS)
-        per_example_loss = loss/float(batch_size)
+        per_example_loss = tf.losses.mean_squared_error(
+            labels=target_weights,
+            predictions=logits,
+            weights=target_mask,
+            reduction=None)
 
         #probabilities = tf.nn.sigmoid(logits) # [batch_size * seq_length, hidden_size]
         # log_probs = tf.nn.log_softmax(logits, axis=-1)
