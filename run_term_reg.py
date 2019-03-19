@@ -301,8 +301,6 @@ def gen_target_token_weights(tokens, term_recall_dict):
             i += 1
             continue
 
-        tf.logging.info(fulltoken)
-        tf.logging.info(term_recall_dict)
         w = term_recall_dict.get(fulltoken, 0)
         term_recall_weights[s] = w
         term_recall_mask[s] = 1
@@ -895,11 +893,10 @@ def main(_):
             tf.logging.info("***** Predict results *****")
             for (i, prediction) in enumerate(result):
                 probabilities = prediction["probabilities"]
+                logits = prediction["logits"]
                 if i >= num_actual_predict_examples:
                     break
-                output_line = "\t".join(
-                    str(class_probability)
-                    for class_probability in probabilities) + "\n"
+                output_line = str(logits) + '\t' + str(probabilities) + "\n"
                 writer.write(output_line)
                 num_written_lines += 1
         assert num_written_lines == num_actual_predict_examples
