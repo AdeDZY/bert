@@ -635,7 +635,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
         else:
             output_spec = tf.contrib.tpu.TPUEstimatorSpec(
                 mode=mode,
-                predictions={"logits": logits, "target_weights": target_weights},
+                predictions={"logits": logits, "target_weights": target_weights, "token_ids": input_ids},
                 scaffold_fn=scaffold_fn)
         return output_spec
 
@@ -901,10 +901,12 @@ def main(_):
             for (i, prediction) in enumerate(result):
                 targets = prediction["target_weights"]
                 logits = prediction["logits"]
+                tokens = tokenizer.convert_ids_to_tokens(prediction["token_ids"])
                 if i >= num_actual_predict_examples:
                     break
-                output_line = str(logits) + '\t' + str(targets) + "\n"
+                output_line = '\t'.join(['{} {}'.format(t, w) for (t, w) in zip(tokens, logits)])
                 writer.write(output_line)
+                writer.write('\n')
                 num_written_lines += 1
         assert num_written_lines == num_actual_predict_examples
 
