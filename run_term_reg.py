@@ -130,10 +130,6 @@ flags.DEFINE_integer(
     "run fold")
 
 flags.DEFINE_string(
-    "query_field", None,
-    "title, desc, narr, question")
-
-flags.DEFINE_string(
     "recall_field", None,
     "title, body, all")
 
@@ -223,9 +219,8 @@ class QueryProcessor(DataProcessor):
     def __init__(self):
         self.n_folds = 5
         self.fold = FLAGS.fold
-        self.query_field = FLAGS.query_field
         self.recall_field = FLAGS.recall_field
-        tf.logging.info("Using query fields {}".format(self.query_field))
+        tf.logging.info("Using recall fields {}".format(self.recall_field))
 
         self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 1)]
         self.dev_fold = (self.fold + self.n_folds - 2) % self.n_folds + 1
@@ -243,7 +238,7 @@ class QueryProcessor(DataProcessor):
             for i, line in enumerate(train_file):
                 q_json_dict = json.loads(line)
                 qid = q_json_dict["qid"]
-                q_text = tokenization.convert_to_unicode(q_json_dict["query"][self.query_field])
+                q_text = tokenization.convert_to_unicode(q_json_dict["query"])
                 term_recall_dict = q_json_dict["term_recall"][self.recall_field]
 
                 guid = "train-%s" % qid
@@ -255,7 +250,7 @@ class QueryProcessor(DataProcessor):
         return examples
 
     def get_dev_examples(self, data_dir):
-        dev_files = [open(os.path.join(data_dir, "{}.trec.with_json".format(self.dev_fold)))]
+        dev_files = ["{}.json".format(self.dev_fold)]
         examples = []
 
         for file_name in dev_files:
@@ -263,7 +258,7 @@ class QueryProcessor(DataProcessor):
             for i, line in enumerate(dev_file):
                 q_json_dict = json.loads(line)
                 qid = q_json_dict["qid"]
-                q_text = tokenization.convert_to_unicode(q_json_dict["query"][self.query_field])
+                q_text = tokenization.convert_to_unicode(q_json_dict["query"])
                 term_recall_dict = q_json_dict["term_recall"][self.recall_field]
 
                 guid = "dev-%s" % qid
@@ -275,7 +270,7 @@ class QueryProcessor(DataProcessor):
 
     def get_test_examples(self, data_dir):
         examples = []
-        test_files = [open(os.path.join(data_dir, "{}.trec.with_json".format(self.test_fold)))]
+        test_files = ["{}.json".format(self.test_fold)]
         examples = []
 
         for file_name in test_files:
@@ -283,7 +278,7 @@ class QueryProcessor(DataProcessor):
             for i, line in enumerate(test_file):
                 q_json_dict = json.loads(line)
                 qid = q_json_dict["qid"]
-                q_text = tokenization.convert_to_unicode(q_json_dict["query"][self.query_field])
+                q_text = tokenization.convert_to_unicode(q_json_dict["query"])
                 term_recall_dict = q_json_dict["term_recall"][self.recall_field]
 
                 guid = "test-%s" % qid
@@ -303,11 +298,21 @@ def gen_target_token_weights(tokens, term_recall_dict):
     while i < len(tokens):
         if tokens[i].startswith('##'):
             fulltoken += tokens[i][2:]
+            i += 1
             continue
 
+        tf.logging.info(fulltoken)
+        tf.logging.info(term_recall_dict)
         w = term_recall_dict.get(fulltoken, 0)
         term_recall_weights[s] = w
         term_recall_mask[s] = 1
+        fulltoken = tokens[i]
+        s = i
+        i += 1
+
+    w = term_recall_dict.get(fulltoken, 0)
+    term_recall_weights[s] = w
+    term_recall_mask[s] = 1
     return term_recall_weights, term_recall_mask
 
 
@@ -320,7 +325,7 @@ def convert_single_example(ex_index, example, max_seq_length,
             input_ids=[0] * max_seq_length,
             input_mask=[0] * max_seq_length,
             segment_ids=[0] * max_seq_length,
-            target_weights=[0] * max_seq_length,
+            target_weights=[0.0] * max_seq_length,
             target_mask=[0] * max_seq_length,
             is_real_example=False)
 
@@ -357,7 +362,7 @@ def convert_single_example(ex_index, example, max_seq_length,
     segment_ids.append(0)
     target_weights.append(0)
     target_mask.append(0)
-    for i, token in enumerate(tokens):
+    for i, token in enumerate(text_tokens):
         tokens.append(token)
         target_weights.append(text_target_weights[i])
         target_mask.append(text_target_mask[i])
@@ -452,7 +457,7 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
         "input_mask": tf.FixedLenFeature([seq_length], tf.int64),
         "segment_ids": tf.FixedLenFeature([seq_length], tf.int64),
         "target_weights": tf.FixedLenFeature([seq_length], tf.float32),
-        "target_weights": tf.FixedLenFeature([seq_length], tf.int64),
+        "target_mask": tf.FixedLenFeature([seq_length], tf.int64),
         "is_real_example": tf.FixedLenFeature([], tf.int64),
     }
 
@@ -466,8 +471,6 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
             t = example[name]
             if t.dtype == tf.int64:
                 t = tf.to_int32(t)
-            if t.dtype == tf.float64:
-                t = tf.to_float(t)
             example[name] = t
 
         return example
