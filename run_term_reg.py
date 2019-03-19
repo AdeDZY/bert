@@ -222,7 +222,7 @@ class QueryProcessor(DataProcessor):
         self.recall_field = FLAGS.recall_field
         tf.logging.info("Using recall fields {}".format(self.recall_field))
 
-        self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 1)]
+        self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 2)]
         self.dev_fold = (self.fold + self.n_folds - 2) % self.n_folds + 1
         self.test_fold = (self.fold + self.n_folds - 1) % self.n_folds + 1
         tf.logging.info("Train Folds: {}".format(str(self.train_folds)))
