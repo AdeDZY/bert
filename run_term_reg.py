@@ -514,6 +514,8 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     bert_output_layer = model.get_sequence_output()  # [batch_size, seq_length, hidden_size]
     hidden_size = bert_output_layer.shape[-1].value
     batch_size = bert_output_layer.shape[0].value
+    tf.logging.info(hidden_size)
+    tf.logging.info(batch_size)
     bert_output_layer = tf.reshape(bert_output_layer, [-1, hidden_size])  # [batch_size * seq_length, hidden_size]
 
     output_weights = tf.get_variable(
@@ -526,9 +528,9 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     with tf.variable_scope("loss"):
         if is_training:
             # I.e., 0.1 dropout
-            output_layer = tf.nn.dropout(bert_output_layer, keep_prob=0.9)
+            bert_output_layer = tf.nn.dropout(bert_output_layer, keep_prob=0.9)
 
-        logits = tf.matmul(output_layer, output_weights, transpose_b=True)  # [batch_size * seq_length, 1]
+        logits = tf.matmul(bert_output_layer, output_weights, transpose_b=True)  # [batch_size * seq_length, 1]
         logits = tf.nn.bias_add(logits, output_bias)  # [batch_size * seq_length, 1]
         logits = tf.reshape(logits, [batch_size, -1])
         probabilities = tf.sigmoid(logits)
