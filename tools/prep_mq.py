@@ -8,9 +8,9 @@ parser.add_argument("--start", "-s", type=int, default=1)
 args = parser.parse_args()
 
 args.outfile.write('<parameters>\n')
-args.outfile.write('<index>/bos/tmp19/zhuyund/buildIndex_Clueweb09/index</index>\n')
+args.outfile.write('<index>/bos/tmp11/zhuyund/buildIndex_robust04/robust04_index</index>\n')
 args.outfile.write('<trecFormat>true</trecFormat>\n')
-args.outfile.write('<count>2000</count>\n')
+args.outfile.write('<count>1000</count>\n')
 n = args.start
 for line in args.queryfile:
 	line = line.strip()

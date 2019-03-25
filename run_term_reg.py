@@ -21,6 +21,7 @@ from __future__ import print_function
 import collections
 import csv
 import os
+import numpy as np
 import modeling
 import optimization
 import tokenization
@@ -301,8 +302,8 @@ def gen_target_token_weights(tokens, term_recall_dict):
             i += 1
             continue
 
-        w = term_recall_dict.get(fulltoken, 0)
-        term_recall_weights[s] = w
+        w = term_recall_dict.get(fulltoken, 0.0)
+        term_recall_weights[s] = w 
         term_recall_mask[s] = 1
         fulltoken = tokens[i]
         s = i
@@ -511,12 +512,17 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     #
     # If you want to use the token-level output, use model.get_sequence_output()
     # instead.
+    #bert_output_cls = tf.expand_dims(model.get_pooled_output(), 1)
+    #tf.logging.info(bert_output_cls.shape)
     bert_output_layer = model.get_sequence_output()  # [batch_size, seq_length, hidden_size]
+    #bert_output_layer = bert_output_layer - bert_output_cls
+    tf.logging.info(bert_output_layer.shape)
     hidden_size = bert_output_layer.shape[-1].value
     seq_length = bert_output_layer.shape[-2].value
     tf.logging.info(hidden_size)
     tf.logging.info(seq_length)
     bert_output_layer = tf.reshape(bert_output_layer, [-1, hidden_size])  # [batch_size * seq_length, hidden_size]
+    tf.logging.info(bert_output_layer.shape)
 
     output_weights = tf.get_variable(
         "output_weights", [1, hidden_size],
@@ -546,7 +552,8 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
         per_example_loss = tf.reduce_sum(per_example_loss, axis=-1)
         masked_logits = logits * tf.to_float(target_mask)
 
-        #probabilities = tf.nn.sigmoid(logits) # [batch_size * seq_length, hidden_size]
+        probabilities = tf.nn.sigmoid(logits) # [batch_size * seq_length, hidden_size]
+        masked_probabilities = probabilities * tf.to_float(target_mask)
         # log_probs = tf.nn.log_softmax(logits, axis=-1)
         #one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
         #per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)

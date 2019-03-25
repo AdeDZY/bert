@@ -22,10 +22,11 @@ for line in args.queryFile:
     items = q.split(' ')
     assert len(items) % 2 == 0
     q_tokens = [items[i * 2 + 1] for i in range(int(len(items)/2))]
+    q_weights = [float(items[i * 2]) for i in range(int(len(items)/2))]
     
     bow_str = q 
-    bigram_str = " ".join(["#1({} {})".format(q_tokens[i], q_tokens[i + 1]) for i in range(len(q_tokens) - 1)])
-    window_str = " ".join(["#uw8({} {})".format(q_tokens[i], q_tokens[i + 1]) for i in range(len(q_tokens) - 1)])
+    bigram_str = " ".join(["#1({} {})".format(q_tokens[i], q_tokens[i + 1]) for i in range(len(q_tokens) - 1) if q_weights[i] > 0.5 and q_weights[i+1] > 0.5])
+    window_str = " ".join(["#uw8({} {})".format(q_tokens[i], q_tokens[i + 1]) for i in range(len(q_tokens) - 1) if q_weights[i] > 0.5 and q_weights[i+1] > 0.5])
     q_str = "#weight( {0} #weight({1}) {2} #combine({3}) {4} #combine({5}))".format(args.w1, bow_str, args.w2, bigram_str, args.w3, window_str)
 
     args.outFile.write("<query><number>{0}</number><text>{1}</text></query>\n".format(n, q_str))
