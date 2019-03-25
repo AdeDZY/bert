@@ -489,6 +489,163 @@ class ClueWebProcessor(DataProcessor):
     def get_labels(self):
         return ["0", "1"]
 
+
+class ReutersProcessor(DataProcessor):
+
+    def __init__(self):
+        self.max_test_depth = 1000
+        self.max_train_depth = 1000
+        self.n_folds = 5
+        self.fold = FLAGS.fold
+        self.query_fields = FLAGS.query_field.split(' ')
+        tf.logging.info("Using query fields {}".format(' '.join(self.q_fields)))
+
+        self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 1)]
+        self.dev_fold = (self.fold + self.n_folds - 2) % self.n_folds + 1
+        self.test_folds = (self.fold + self.n_folds - 1) % self.n_folds + 1
+        tf.logging.info("Train Folds: {}".format(str(self.train_folds)))
+        tf.logging.info("Dev Fold: {}".format(str(self.dev_fold)))
+        tf.logging.info("Test Fold: {}".format(str(self.test_folds)))
+
+    def get_train_examples(self, data_dir):
+        examples = []
+        train_files = ["{}.trec.with_json".format(i) for i in self.train_folds]
+
+        qrel_file = open(os.path.join(data_dir, "qrels"))
+        qrels = self._read_qrel(qrel_file)
+        tf.logging.info("Qrel size: {}".format(len(qrels)))
+
+        query_file = open(os.path.join(data_dir, "queries.json"))
+        qid2queries = self._read_queries(query_file)
+        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), qid2queries.values()[0]))
+
+        for file_name in train_files:
+            train_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(train_file):
+                items = line.strip().split('#')
+                trec_line = items[0]
+
+                qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+                assert qid in qid2queries, "QID {} not found".format(qid)
+                q_json_dict = qid2queries[qid]
+                q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
+
+                json_dict = json.loads('#'.join(items[1:]))
+                body_words = json_dict["doc"]["body"].split(' ')
+                truncated_body = ' '.join(body_words[0: min(200, len(body_words))])
+                d = tokenization.convert_to_unicode(json_dict["doc"].get("title", "") + truncated_body)
+
+                r = int(r)
+                if r > self.max_train_depth:
+                    continue
+                label = tokenization.convert_to_unicode("0")
+                if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
+                    label = tokenization.convert_to_unicode("1")
+                guid = "train-%s-%s" % (qid, docid)
+                examples.append(
+                    InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
+                )
+            train_file.close()
+        random.shuffle(examples)
+        return examples
+
+    def get_dev_examples(self, data_dir):
+        examples = []
+        dev_file = open(os.path.join(data_dir, "{}.trec.with_json".format(self.dev_folds)))
+        qrel_file = open(os.path.join(data_dir, "qrels"))
+        qrels = self._read_qrel(qrel_file)
+        tf.logging.info("Qrel size: {}".format(len(qrels)))
+
+        query_file = open(os.path.join(data_dir, "queries.json"))
+        qid2queries = self._read_queries(query_file)
+        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), qid2queries.values()[0]))
+
+        for i, line in enumerate(dev_file):
+            items = line.strip().split('#')
+            trec_line = items[0]
+
+            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+            assert qid in qid2queries, "QID {} not found".format(qid)
+            q_json_dict = qid2queries[qid]
+            q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
+
+            json_dict = json.loads('#'.join(items[1:]))
+            body_words = json_dict["doc"]["body"].split(' ')
+            truncated_body = ' '.join(body_words[0: min(200, len(body_words))])
+            d = tokenization.convert_to_unicode(json_dict["doc"].get("title", "") + truncated_body)
+
+            r = int(r)
+            if r > self.max_test_depth:
+                continue
+            label = tokenization.convert_to_unicode("0")
+            if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
+                label = tokenization.convert_to_unicode("1")
+            guid = "dev-%s-%s" % (qid, docid)
+            examples.append(
+                InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
+            )
+        dev_file.close()
+        return examples
+
+    def get_test_examples(self, data_dir):
+        examples = []
+        dev_file = open(os.path.join(data_dir, "{}.trec.with_json".format(self.test_folds)))
+        qrel_file = open(os.path.join(data_dir, "qrels"))
+        qrels = self._read_qrel(qrel_file)
+        tf.logging.info("Qrel size: {}".format(len(qrels)))
+
+        query_file = open(os.path.join(data_dir, "queries.json"))
+        qid2queries = self._read_queries(query_file)
+        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), qid2queries.values()[0]))
+
+        for i, line in enumerate(dev_file):
+            items = line.strip().split('#')
+            trec_line = items[0]
+
+            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+            assert qid in qid2queries, "QID {} not found".format(qid)
+            q_json_dict = qid2queries[qid]
+            q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
+
+            json_dict = json.loads('#'.join(items[1:]))
+            body_words = json_dict["doc"]["body"].split(' ')
+            truncated_body = ' '.join(body_words[0: min(200, len(body_words))])
+            d = tokenization.convert_to_unicode(json_dict["doc"].get("title", "") + truncated_body)
+
+            r = int(r)
+            if r > self.max_test_depth:
+                continue
+            label = tokenization.convert_to_unicode("0")
+            if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
+                label = tokenization.convert_to_unicode("1")
+            guid = "test-%s-%s" % (qid, docid)
+            examples.append(
+                InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
+            )
+        dev_file.close()
+        return examples
+
+    def _read_qrel(self, qrel_file):
+        qrels = set()
+        for line in qrel_file:
+            qid, _, docid, rel = line.strip().split(' ')
+            rel = int(rel)
+            if rel > 0:
+                qrels.add((qid, docid))
+        return qrels
+
+    def _read_queries(self, query_file):
+        qid2queries = {}
+        for line in query_file:
+            json_dict = json.loads(line)
+            qid = json_dict['qid']
+            qid2queries[qid] = json_dict
+        return qid2queries
+
+    def get_labels(self):
+        return ["0", "1"]
+
+
 def convert_single_example(ex_index, example, label_list, max_seq_length,
                            tokenizer):
     """Converts a single `InputExample` into a single `InputFeatures`."""
