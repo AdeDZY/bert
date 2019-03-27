@@ -290,6 +290,10 @@ class QueryProcessor(DataProcessor):
         return examples
 
 
+stopwords_path = "/bos/usr0/zhuyund/query_reweight/stopwords2"
+stopwords = [l.strip() for l in open(stopwords_path)]
+
+
 def gen_target_token_weights(tokens, term_recall_dict):
     fulltoken = tokens[0]
     i = 1
@@ -303,8 +307,11 @@ def gen_target_token_weights(tokens, term_recall_dict):
             continue
 
         w = term_recall_dict.get(fulltoken, 0.0)
-        term_recall_weights[s] = w 
-        term_recall_mask[s] = 1
+        term_recall_weights[s] = w
+        if fulltoken in stopwords:
+            term_recall_mask[s] = 0
+        else:
+            term_recall_mask[s] = 1
         fulltoken = tokens[i]
         s = i
         i += 1
@@ -754,6 +761,9 @@ def main(_):
     tf.gfile.MakeDirs(FLAGS.output_dir)
 
     task_name = FLAGS.task_name.lower()
+
+
+
 
     if task_name not in processors:
         raise ValueError("Task not found: %s" % (task_name))
