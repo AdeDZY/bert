@@ -215,6 +215,70 @@ class DataProcessor(object):
             return lines
 
 
+class MarcoQueryProcessor(DataProcessor):
+
+    def __init__(self):
+        self.recall_field = FLAGS.recall_field
+        tf.logging.info("Using recall fields {}".format(self.recall_field))
+
+    def get_train_examples(self, data_dir):
+        examples = []
+        train_files = ["mytrain.term_recall.json"] 
+
+        for file_name in train_files:
+            train_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(train_file):
+                q_json_dict = json.loads(line)
+                qid = q_json_dict["qid"]
+                q_text = tokenization.convert_to_unicode(q_json_dict["query"])
+                term_recall_dict = q_json_dict["term_recall"][self.recall_field]
+
+                guid = "train-%s" % qid
+                examples.append(
+                    InputExample(guid=guid, text=q_text, term_recall_dict=term_recall_dict)
+                )
+            train_file.close()
+        random.shuffle(examples)
+        return examples
+
+    def get_dev_examples(self, data_dir):
+        dev_files = ["mydev.term_recall.json"] 
+        examples = []
+
+        for file_name in dev_files:
+            dev_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(dev_file):
+                q_json_dict = json.loads(line)
+                qid = q_json_dict["qid"]
+                q_text = tokenization.convert_to_unicode(q_json_dict["query"])
+                term_recall_dict = q_json_dict["term_recall"][self.recall_field]
+
+                guid = "dev-%s" % qid
+                examples.append(
+                    InputExample(guid=guid, text=q_text, term_recall_dict=term_recall_dict)
+                )
+            dev_file.close()
+        return examples
+
+    def get_test_examples(self, data_dir):
+        test_files = ["mytest.term_recall.json"] 
+        examples = []
+
+        for file_name in test_files:
+            test_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(test_file):
+                q_json_dict = json.loads(line)
+                qid = q_json_dict["qid"]
+                q_text = tokenization.convert_to_unicode(q_json_dict["query"])
+                term_recall_dict = q_json_dict["term_recall"][self.recall_field]
+
+                guid = "test-%s" % qid
+                examples.append(
+                    InputExample(guid=guid, text=q_text, term_recall_dict=term_recall_dict)
+                )
+            test_file.close()
+        return examples
+
 class QueryProcessor(DataProcessor):
 
     def __init__(self):
@@ -232,7 +296,7 @@ class QueryProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         examples = []
-        train_files = ["{}.json".format(i) for i in self.train_folds]
+        train_files = ["{}.json".format(i) for i in self.train_folds] + ["aux.json"]
 
         for file_name in train_files:
             train_file = open(os.path.join(data_dir, file_name))
@@ -290,8 +354,8 @@ class QueryProcessor(DataProcessor):
         return examples
 
 
-stopwords_path = "/bos/usr0/zhuyund/query_reweight/stopwords2"
-stopwords = [l.strip() for l in open(stopwords_path)]
+#stopwords_path = "/bos/usr0/zhuyund/query_reweight/stopwords2"
+#stopwords = [l.strip() for l in open(stopwords_path)]
 
 
 def gen_target_token_weights(tokens, term_recall_dict):
@@ -308,10 +372,10 @@ def gen_target_token_weights(tokens, term_recall_dict):
 
         w = term_recall_dict.get(fulltoken, 0.0)
         term_recall_weights[s] = w
-        if fulltoken in stopwords:
-            term_recall_mask[s] = 0
-        else:
-            term_recall_mask[s] = 1
+        #if fulltoken in stopwords:
+        #    term_recall_mask[s] = 0
+        #else:
+        term_recall_mask[s] = 1
         fulltoken = tokens[i]
         s = i
         i += 1
@@ -741,7 +805,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
 def main(_):
     tf.logging.set_verbosity(tf.logging.INFO)
 
-    processors = {"query": QueryProcessor}
+    processors = {"query": QueryProcessor, "marcoquery": MarcoQueryProcessor}
 
     tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
                                                   FLAGS.init_checkpoint)
