@@ -215,6 +215,68 @@ class DataProcessor(object):
             return lines
 
 
+class MarcoDocProcessor(DataProcessor):
+
+    def __init__(self):
+
+    def get_train_examples(self, data_dir):
+        examples = []
+        train_files = ["myalltrain.relevant.docterm_recall.train"]
+
+        for file_name in train_files:
+            train_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(train_file):
+                json_dict = json.loads(line)
+                docid = json_dict["doc"]["id"]
+                doc_text = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+                term_recall_dict = json_dict["term_recall"]
+
+                guid = "train-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            train_file.close()
+        random.shuffle(examples)
+        return examples
+
+    def get_dev_examples(self, data_dir):
+        dev_files = ["myalltrain.relevant.docterm_recall.dev"]
+        examples = []
+
+        for file_name in dev_files:
+            dev_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(dev_file):
+                json_dict = json.loads(line)
+                docid = json_dict["doc"]["id"]
+                doc_text = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+                term_recall_dict = json_dict["term_recall"]
+
+                guid = "dev-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            dev_file.close()
+        return examples
+
+    def get_test_examples(self, data_dir):
+        test_files = ["myalltrain.relevant.docterm_recall.test"]
+        examples = []
+
+        for file_name in test_files:
+            test_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(test_file):
+                json_dict = json.loads(line)
+                docid = json_dict["doc"]["id"]
+                doc_text = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+                term_recall_dict = json_dict["term_recall"]
+
+                guid = "test-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            test_file.close()
+        return examples
+
 class MarcoQueryProcessor(DataProcessor):
 
     def __init__(self):
@@ -805,7 +867,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
 def main(_):
     tf.logging.set_verbosity(tf.logging.INFO)
 
-    processors = {"query": QueryProcessor, "marcoquery": MarcoQueryProcessor}
+    processors = {"query": QueryProcessor,
+                  "marcoquery": MarcoQueryProcessor,
+                  "marcodoc": MarcoDocProcessor}
 
     tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
                                                   FLAGS.init_checkpoint)
