@@ -5,6 +5,8 @@ import numpy as np
 stopwords = set([line.strip() for line in open("/bos/usr0/zhuyund/query_reweight/stopwords2")] + ["information", "looking", "find"]) 
 #stopwords = set([line.strip() for line in open("/bos/usr0/zhuyund/query_reweight/stopwords_robust04")] + ["information", "looking", "find"]) 
 
+thred = 0
+print("weights < {} will be filetered!".format(thred))
 def subword_weight_to_word_weight(subword_weight_str):
     fulltokens = []
     weights = []
@@ -23,12 +25,16 @@ def subword_weight_to_word_weight(subword_weight_str):
     for token, w in zip(fulltokens, weights):
         if '[' in token or token in stopwords or not token.isalnum():
             continue
-        if w < 0 or token in visited:
+        if w < thred or token in visited:
             continue
         fulltokens_filtered.append(token)
         weights_filtered.append(w)
         visited.add(token)
     #weights_filtered = np.exp(weights_filtered)/sum(np.exp(weights_filtered))
+    if len(fulltokens_filtered) == 0:
+        tmp = sorted(zip(weights, fulltokens), reverse=True)
+        fulltokens_filtered = [t[1] for t in tmp[0:3]]
+        weights_filtered = [t[0] for t in tmp[0:3]]
     return fulltokens_filtered, weights_filtered
          
 def json_to_trec(dataset_file_path: str,

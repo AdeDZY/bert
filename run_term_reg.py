@@ -217,8 +217,6 @@ class DataProcessor(object):
 
 class MarcoDocProcessor(DataProcessor):
 
-    def __init__(self):
-
     def get_train_examples(self, data_dir):
         examples = []
         train_files = ["myalltrain.relevant.docterm_recall.train"]
@@ -346,8 +344,8 @@ class QueryProcessor(DataProcessor):
     def __init__(self):
         self.n_folds = 5
         self.fold = FLAGS.fold
-        self.recall_field = FLAGS.recall_field
-        tf.logging.info("Using recall fields {}".format(self.recall_field))
+        self.recall_fields = FLAGS.recall_field.split(',')
+        tf.logging.info("Using recall fields {}".format(self.recall_fields))
 
         self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 2)]
         self.dev_fold = (self.fold + self.n_folds - 2) % self.n_folds + 1
@@ -358,47 +356,56 @@ class QueryProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         examples = []
-        train_files = ["{}.json".format(i) for i in self.train_folds] + ["aux.json"]
+        train_files = ["{}.json".format(i) for i in self.train_folds] #+ ["aux.json"]
+        data_dirs = data_dir.split(',')
 
         for file_name in train_files:
-            train_file = open(os.path.join(data_dir, file_name))
-            for i, line in enumerate(train_file):
-                q_json_dict = json.loads(line)
-                qid = q_json_dict["qid"]
-                q_text = tokenization.convert_to_unicode(q_json_dict["query"])
-                term_recall_dict = q_json_dict["term_recall"][self.recall_field]
+            for data_dir in data_dirs:
+                train_file = open(os.path.join(data_dir, file_name))
+                for i, line in enumerate(train_file):
+                    q_json_dict = json.loads(line)
+                    qid = q_json_dict["qid"]
+                    q_text = tokenization.convert_to_unicode(q_json_dict["query"])
+                    for field in self.recall_fields:
+                        if field not in q_json_dict["term_recall"]: continue
+                        term_recall_dict = q_json_dict["term_recall"][field]
 
-                guid = "train-%s" % qid
-                examples.append(
-                    InputExample(guid=guid, text=q_text, term_recall_dict=term_recall_dict)
-                )
-            train_file.close()
+                        guid = "train-%s" % qid
+                        examples.append(
+                            InputExample(guid=guid, text=q_text, term_recall_dict=term_recall_dict)
+                        )
+                train_file.close()
         random.shuffle(examples)
         return examples
 
     def get_dev_examples(self, data_dir):
         dev_files = ["{}.json".format(self.dev_fold)]
         examples = []
+        data_dirs = data_dir.split(',')
 
         for file_name in dev_files:
-            dev_file = open(os.path.join(data_dir, file_name))
-            for i, line in enumerate(dev_file):
-                q_json_dict = json.loads(line)
-                qid = q_json_dict["qid"]
-                q_text = tokenization.convert_to_unicode(q_json_dict["query"])
-                term_recall_dict = q_json_dict["term_recall"][self.recall_field]
+            for data_dir in data_dirs:
+                dev_file = open(os.path.join(data_dir, file_name))
+                for i, line in enumerate(dev_file):
+                    q_json_dict = json.loads(line)
+                    qid = q_json_dict["qid"]
+                    q_text = tokenization.convert_to_unicode(q_json_dict["query"])
+                    for field in self.recall_fields:
+                        if field not in q_json_dict["term_recall"]: continue
+                        term_recall_dict = q_json_dict["term_recall"][field]
 
-                guid = "dev-%s" % qid
-                examples.append(
-                    InputExample(guid=guid, text=q_text, term_recall_dict=term_recall_dict)
-                )
-            dev_file.close()
+                        guid = "dev-%s" % qid
+                        examples.append(
+                            InputExample(guid=guid, text=q_text, term_recall_dict=term_recall_dict)
+                        )
+                dev_file.close()
         return examples
 
     def get_test_examples(self, data_dir):
         examples = []
         test_files = ["{}.json".format(self.test_fold)]
         examples = []
+        data_dir = data_dir.split(',')[0]
 
         for file_name in test_files:
             test_file = open(os.path.join(data_dir, file_name))
@@ -406,12 +413,15 @@ class QueryProcessor(DataProcessor):
                 q_json_dict = json.loads(line)
                 qid = q_json_dict["qid"]
                 q_text = tokenization.convert_to_unicode(q_json_dict["query"])
-                term_recall_dict = q_json_dict["term_recall"][self.recall_field]
+                for field in self.recall_fields:
+                    if field not in q_json_dict["term_recall"]: continue
+                    term_recall_dict = q_json_dict["term_recall"][field]
 
-                guid = "test-%s" % qid
-                examples.append(
-                    InputExample(guid=guid, text=q_text, term_recall_dict=term_recall_dict)
-                )
+                    guid = "test-%s" % qid
+                    examples.append(
+                        InputExample(guid=guid, text=q_text, term_recall_dict=term_recall_dict)
+                    )
+                    break
             test_file.close()
         return examples
 
@@ -658,11 +668,11 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     tf.logging.info(bert_output_layer.shape)
 
     output_weights = tf.get_variable(
-        "output_weights", [1, hidden_size],
+        "tw_output_weights", [1, hidden_size],
         initializer=tf.truncated_normal_initializer(stddev=0.02))
 
     output_bias = tf.get_variable(
-        "output_bias", [1], initializer=tf.zeros_initializer())
+        "tw_output_bias", [1], initializer=tf.zeros_initializer())
 
     with tf.variable_scope("loss"):
         if is_training:
@@ -929,6 +939,7 @@ def main(_):
         file_based_convert_examples_to_features(
             train_examples, FLAGS.max_seq_length, tokenizer, train_file)
         #tf.logging.info("write to train.tf_record! exit. I am NOT training")
+        #tf.logging.info("I am NOT writing train file")
         #exit(-1)
 
     # If TPU is not available, this will fall back to normal Estimator on CPU
