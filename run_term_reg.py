@@ -275,6 +275,29 @@ class MarcoDocProcessor(DataProcessor):
             test_file.close()
         return examples
 
+
+
+class MarcoTsvDocProcessor(DataProcessor):
+
+    def get_test_examples(self, data_dir):
+        test_files = ["collection.tsv"]
+        examples = []
+
+        for file_name in test_files:
+            test_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(test_file):
+                docid, t = line.strip().split('\t')
+                doc_text = tokenization.convert_to_unicode(t)
+                term_recall_dict = {}
+
+                guid = "test-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            test_file.close()
+        return examples
+
+
 class MarcoQueryProcessor(DataProcessor):
 
     def __init__(self):
