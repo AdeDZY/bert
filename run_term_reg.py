@@ -215,6 +215,68 @@ class DataProcessor(object):
             return lines
 
 
+class CarDocProcessor(DataProcessor):
+
+    def get_train_examples(self, data_dir):
+        examples = []
+        train_files = ["train.fold0.docterm_recall", "train.fold1.docterm_recall", "train.fold2.docterm_recall", "train.fold3.docterm_recall"]
+
+        for file_name in train_files:
+            train_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(train_file):
+                json_dict = json.loads(line)
+                docid = json_dict["doc"]["id"]
+                doc_text = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+                term_recall_dict = json_dict["term_recall"]
+                if not term_recall_dict or not doc_text.strip():
+                    continue
+
+                guid = "train-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            train_file.close()
+        random.shuffle(examples)
+        return examples
+
+    def get_dev_examples(self, data_dir):
+        dev_files = ["train.fold4.docterm_recall.firsthalf"]
+        examples = []
+
+        for file_name in dev_files:
+            dev_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(dev_file):
+                json_dict = json.loads(line)
+                docid = json_dict["doc"]["id"]
+                doc_text = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+                term_recall_dict = json_dict["term_recall"]
+
+                guid = "dev-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            dev_file.close()
+        return examples
+
+    def get_test_examples(self, data_dir):
+        test_files = ["train.fold4.docterm_recall.secondhalf"]
+        examples = []
+
+        for file_name in test_files:
+            test_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(test_file):
+                json_dict = json.loads(line)
+                docid = json_dict["doc"]["id"]
+                doc_text = tokenization.convert_to_unicode(json_dict["doc"]["title"])
+                term_recall_dict = json_dict["term_recall"]
+
+                guid = "test-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            test_file.close()
+        return examples
+
 class MarcoDocProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
@@ -280,7 +342,7 @@ class MarcoDocProcessor(DataProcessor):
 class MarcoTsvDocProcessor(DataProcessor):
 
     def get_test_examples(self, data_dir):
-        test_files = ["collection.tsv"]
+        test_files = [data_dir]
         examples = []
 
         for file_name in test_files:
@@ -902,7 +964,9 @@ def main(_):
 
     processors = {"query": QueryProcessor,
                   "marcoquery": MarcoQueryProcessor,
-                  "marcodoc": MarcoDocProcessor}
+                  "marcodoc": MarcoDocProcessor, 
+                  "marcotsvdoc": MarcoTsvDocProcessor,
+                  "cardoc": CarDocProcessor}
 
     tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
                                                   FLAGS.init_checkpoint)
@@ -989,11 +1053,12 @@ def main(_):
         tf.logging.info("  Num examples = %d", len(train_examples))
         tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
         tf.logging.info("  Num steps = %d", num_train_steps)
-        train_input_fn = file_based_input_fn_builder(
-            input_file=train_file,
-            seq_length=FLAGS.max_seq_length,
-            is_training=True,
-            drop_remainder=True)
+        #train_input_fn = file_based_input_fn_builder(
+        #    input_file=train_file,
+        #    seq_length=FLAGS.max_seq_length,
+        #    is_training=True,
+        #    drop_remainder=True)
+        tf.logging.info("i am not generating training files")
         estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
     if FLAGS.do_eval:
