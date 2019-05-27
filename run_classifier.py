@@ -263,6 +263,48 @@ class XnliProcessor(DataProcessor):
     return ["contradiction", "entailment", "neutral"]
 
 
+class DeepCTBaseMarcoProcessor(DataProcessor):
+
+    def get_test_examples(self, data_dir):
+        examples = []
+        dev_file = tf.gfile.Open(os.path.join(data_dir, "bm25.top1000.tsv"))
+        qrel_file = tf.gfile.Open(os.path.join(data_dir, "qrels.dev.tsv"))
+
+        for i, line in enumerate(dev_file):
+            qid, docid, q, d = line.split('\t')
+            label = tokenization.convert_to_unicode("0")
+            guid = "test-%d" % i
+            examples.append(
+                InputExample(guid=guid, text_a=q, text_b=d, label=label)
+            )
+            
+        dev_file.close()
+        qrel_file.close()
+        return examples
+
+    def get_labels(self):
+        return ["0", "1"]
+
+class DeepCTBaseCarProcessor(DataProcessor):
+
+    def get_test_examples(self, data_dir):
+        examples = []
+        dev_file = tf.gfile.Open(os.path.join(data_dir, "car.bm25.top1000.tsv"))
+
+        for i, line in enumerate(dev_file):
+            qid, docid, q, d = line.split('\t')
+            label = tokenization.convert_to_unicode("0")
+            guid = "test-%d" % i
+            examples.append(
+                InputExample(guid=guid, text_a=q, text_b=d, label=label)
+            )
+            
+        dev_file.close()
+        return examples
+
+    def get_labels(self):
+        return ["0", "1"]
+
 class MarcoProcessor(DataProcessor):
 
     def __init__(self):
@@ -1309,6 +1351,8 @@ def main(_):
       "binglogtitle": BingLogTitleProcessor,
       "binglogtitlesnippet": BingLogTitleSnippetProcessor,
       "robust": RobustProcessor,
+      "deepctbasemarco": DeepCTBaseMarcoProcessor,
+      "deepctbasecar": DeepCTBaseCarProcessor,
   }
 
   tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,

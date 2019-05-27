@@ -58,7 +58,8 @@ def json_to_trec(dataset_file_path: str,
             sorted_ranking = sorted(my_ranking, reverse=True)
             for rank, item in enumerate(sorted_ranking):
                 score, docid = item
-                out_str = "{0}\tQ0\t{1}\t{2}\t{3}\t{4}\n".format(qid, docid, rank + 1, score, run_name)
+                #out_str = "{0}\tQ0\t{1}\t{2}\t{3}\t{4}\n".format(qid, docid, rank + 1, score, run_name)
+                out_str = "{0}\t{1}\t{2}\n".format(qid, docid, rank + 1)
                 out_file.write(out_str)
 
     print("TREC file written to {0}! {1} queries, {2} docs".format(output_file_path, len(rankings), n_docs))
