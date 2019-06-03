@@ -71,8 +71,6 @@ flags.DEFINE_integer(
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
-flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
-
 flags.DEFINE_bool(
     "do_predict", False,
     "Whether to run the model in inference mode on the test set.")
@@ -134,6 +132,10 @@ flags.DEFINE_string(
     "None if no field, else title, desc, narr, question")
 
 
+flags.DEFINE_string("doc_field", None,
+                    "title body/abstract url, etc; seperated by a blank")
+
+
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
 
@@ -149,8 +151,17 @@ class InputExample(object):
             specified for train and dev examples, but not for test examples.
         """
         self.guid = guid
+
+        #  a list of queries
+        # E.g. ["obama family tree"]
+        # or ["obama family tree", "find information about obama's history"]
         self.text_a_list = text_a_list
+
+        # a string of the document
+        # #.g. "barack obama -- wikipeid"
         self.text_b = text_b
+
+        # relevance label: 0 or 1
         self.label = label
 
 
@@ -216,16 +227,16 @@ class DataProcessor(object):
 class RobustProcessor(DataProcessor):
 
     def __init__(self):
-        self.max_test_depth = 100
-        self.max_train_depth = 1000
+        self.max_test_depth = 100  # for testing, we re-rank the top 100 results
+        self.max_train_depth = 1000  # for training, we use negative samples from the top 1000 documents
+
         self.n_folds = 5
         self.fold = FLAGS.fold
         self.query_field = FLAGS.query_field
+
         self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 1)]
-        self.dev_fold = (self.fold + self.n_folds - 2) % self.n_folds + 1
         self.test_folds = (self.fold + self.n_folds - 1) % self.n_folds + 1
         tf.logging.info("Train Folds: {}".format(str(self.train_folds)))
-        tf.logging.info("Dev Fold: {}".format(str(self.dev_fold)))
         tf.logging.info("Test Fold: {}".format(str(self.test_folds)))
 
     def get_train_examples(self, data_dir):
@@ -259,36 +270,6 @@ class RobustProcessor(DataProcessor):
                 )
             train_file.close()
         random.shuffle(examples)
-        return examples
-
-    def get_dev_examples(self, data_dir):
-        examples = []
-        dev_file = open(os.path.join(data_dir, "{}.trec.with_json".format(self.dev_folds)))
-        qrel_file = open(os.path.join(data_dir, "qrels"))
-        qrels = self._read_qrel(qrel_file)
-        q_fields = FLAGS.query_field.split(' ')
-        tf.logging.info("Using query fields {}".format(' '.join(q_fields)))
-
-        for i, line in enumerate(dev_file):
-            items = line.strip().split('#')
-            trec_line = items[0]
-            json_dict = json.loads('#'.join(items[1:]))
-            q = json_dict["query"]
-            q_text_list = [tokenization.convert_to_unicode(q[field]) for field in q_fields]
-
-            d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
-            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
-            r = int(r)
-            if r > self.max_test_depth:
-                continue
-            label = tokenization.convert_to_unicode("0")
-            if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
-                label = tokenization.convert_to_unicode("1")
-            guid = "dev-%s-%s" % (qid, docid)
-            examples.append(
-                InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
-            )
-        dev_file.close()
         return examples
 
     def get_test_examples(self, data_dir):
@@ -345,10 +326,8 @@ class ClueWebProcessor(DataProcessor):
         tf.logging.info("Using query fields {}".format(' '.join(self.q_fields)))
 
         self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 1)]
-        self.dev_fold = (self.fold + self.n_folds - 2) % self.n_folds + 1
         self.test_folds = (self.fold + self.n_folds - 1) % self.n_folds + 1
         tf.logging.info("Train Folds: {}".format(str(self.train_folds)))
-        tf.logging.info("Dev Fold: {}".format(str(self.dev_fold)))
         tf.logging.info("Test Fold: {}".format(str(self.test_folds)))
 
     def get_train_examples(self, data_dir):
@@ -377,6 +356,8 @@ class ClueWebProcessor(DataProcessor):
                 json_dict = json.loads('#'.join(items[1:]))
                 body_words = json_dict["doc"]["body"].split(' ')
                 truncated_body = ' '.join(body_words[0: min(200, len(body_words))])
+
+                # we use the concatentation of title and document first 200 tokens
                 d = tokenization.convert_to_unicode(json_dict["doc"].get("title", "") + truncated_body)
 
                 r = int(r)
@@ -391,44 +372,6 @@ class ClueWebProcessor(DataProcessor):
                 )
             train_file.close()
         random.shuffle(examples)
-        return examples
-
-    def get_dev_examples(self, data_dir):
-        examples = []
-        dev_file = open(os.path.join(data_dir, "{}.trec.with_json".format(self.dev_folds)))
-        qrel_file = open(os.path.join(data_dir, "qrels"))
-        qrels = self._read_qrel(qrel_file)
-        tf.logging.info("Qrel size: {}".format(len(qrels)))
-
-        query_file = open(os.path.join(data_dir, "queries.json"))
-        qid2queries = self._read_queries(query_file)
-        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), qid2queries.values()[0]))
-
-        for i, line in enumerate(dev_file):
-            items = line.strip().split('#')
-            trec_line = items[0]
-
-            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
-            assert qid in qid2queries, "QID {} not found".format(qid)
-            q_json_dict = qid2queries[qid]
-            q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
-
-            json_dict = json.loads('#'.join(items[1:]))
-            body_words = json_dict["doc"]["body"].split(' ')
-            truncated_body = ' '.join(body_words[0: min(200, len(body_words))])
-            d = tokenization.convert_to_unicode(json_dict["doc"].get("title", "") + truncated_body)
-
-            r = int(r)
-            if r > self.max_test_depth:
-                continue
-            label = tokenization.convert_to_unicode("0")
-            if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
-                label = tokenization.convert_to_unicode("1")
-            guid = "dev-%s-%s" % (qid, docid)
-            examples.append(
-                InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
-            )
-        dev_file.close()
         return examples
 
     def get_test_examples(self, data_dir):
@@ -490,22 +433,275 @@ class ClueWebProcessor(DataProcessor):
         return ["0", "1"]
 
 
-class ReutersProcessor(DataProcessor):
+class RobustPassageProcessor(DataProcessor):
 
     def __init__(self):
-        self.max_test_depth = 1000
-        self.max_train_depth = 1000
+        self.max_test_depth = 100  # for testing, we re-rank the top 100 results
+        self.max_train_depth = 1000  # for training, we use negative samples from the top 1000 documents
         self.n_folds = 5
         self.fold = FLAGS.fold
-        self.query_fields = FLAGS.query_field.split(' ')
+        self.q_fields = FLAGS.query_field.split(' ')
         tf.logging.info("Using query fields {}".format(' '.join(self.q_fields)))
 
         self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 1)]
-        self.dev_fold = (self.fold + self.n_folds - 2) % self.n_folds + 1
         self.test_folds = (self.fold + self.n_folds - 1) % self.n_folds + 1
         tf.logging.info("Train Folds: {}".format(str(self.train_folds)))
-        tf.logging.info("Dev Fold: {}".format(str(self.dev_fold)))
         tf.logging.info("Test Fold: {}".format(str(self.test_folds)))
+
+    def get_train_examples(self, data_dir):
+        examples = []
+        train_files = ["{}.trec.with_json".format(i) for i in self.train_folds]
+
+        qrel_file = tf.gfile.Open(os.path.join(data_dir, "qrels"))
+        qrels = self._read_qrel(qrel_file)
+        tf.logging.info("Qrel size: {}".format(len(qrels)))
+
+        query_file = tf.gfile.Open(os.path.join(data_dir, "queries.json"))
+        qid2queries = self._read_queries(query_file)
+        tf.logging.info("Loaded {} queries.".format(len(qid2queries)))
+
+        for file_name in train_files:
+            train_file = tf.gfile.Open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(train_file):
+
+                items = line.strip().split('#')
+                trec_line = items[0]
+
+                qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+
+                # to train, we do not use all passages because it leads to overfitting
+                # we subsample the following:
+                #    first passage in a doc
+                #    10% other passages in the doc
+                if int(docid.split('_')[-1].split('-')[-1]) != 0 and random.random() > 0.1:
+                    continue
+
+                assert qid in qid2queries, "QID {} not found".format(qid)
+                q_json_dict = qid2queries[qid]
+                q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
+
+                json_dict = json.loads('#'.join(items[1:]))
+                d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
+
+                r = int(r)
+                if r > self.max_train_depth:
+                    continue
+                label = tokenization.convert_to_unicode("0")
+                if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
+                    label = tokenization.convert_to_unicode("1")
+                guid = "train-%s-%s" % (qid, docid)
+                examples.append(
+                    InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
+                )
+            train_file.close()
+        random.shuffle(examples)
+        return examples
+
+    def get_test_examples(self, data_dir):
+        examples = []
+        dev_file = tf.gfile.Open(os.path.join(data_dir, "{}.trec.with_json".format(self.test_folds)))
+        qrel_file = tf.gfile.Open(os.path.join(data_dir, "qrels"))
+        qrels = self._read_qrel(qrel_file)
+        tf.logging.info("Qrel size: {}".format(len(qrels)))
+
+        query_file = tf.gfile.Open(os.path.join(data_dir, "queries.json"))
+        qid2queries = self._read_queries(query_file)
+        tf.logging.info("Loaded {} queries.".format(len(qid2queries)))
+
+        for i, line in enumerate(dev_file):
+            items = line.strip().split('#')
+            trec_line = items[0]
+
+            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+            assert qid in qid2queries, "QID {} not found".format(qid)
+            q_json_dict = qid2queries[qid]
+            q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
+
+            json_dict = json.loads('#'.join(items[1:]))
+            d = tokenization.convert_to_unicode(json_dict["doc"]["body"])
+
+            r = int(r)
+            if r > self.max_test_depth:
+                continue
+            label = tokenization.convert_to_unicode("0")
+            if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
+                label = tokenization.convert_to_unicode("1")
+            guid = "test-%s-%s" % (qid, docid)
+            examples.append(
+                InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
+            )
+        dev_file.close()
+        return examples
+
+    def _read_qrel(self, qrel_file):
+        qrels = set()
+        for line in qrel_file:
+            qid, _, docid, rel = line.strip().split(' ')
+            rel = int(rel)
+            if rel > 0:
+                qrels.add((qid, docid))
+        return qrels
+
+    def _read_queries(self, query_file):
+        qid2queries = {}
+        for i, line in enumerate(query_file):
+            json_dict = json.loads(line)
+            qid = json_dict['qid']
+            qid2queries[qid] = json_dict
+            if i < 3:
+                tf.logging.info("Example Q: {}".format(json_dict))
+        return qid2queries
+
+    def get_labels(self):
+        return ["0", "1"]
+
+
+class ClueWebPassageProcessor(DataProcessor):
+
+    def __init__(self):
+        self.max_test_depth = 100
+        self.max_train_depth = 100
+        self.n_folds = 5
+        self.fold = FLAGS.fold
+        self.q_fields = FLAGS.query_field.split(' ')
+        tf.logging.info("Using query fields {}".format(' '.join(self.q_fields)))
+
+        self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 1)]
+        self.test_folds = (self.fold + self.n_folds - 1) % self.n_folds + 1
+        tf.logging.info("Train Folds: {}".format(str(self.train_folds)))
+        tf.logging.info("Test Fold: {}".format(str(self.test_folds)))
+
+    def get_train_examples(self, data_dir):
+        examples = []
+        train_files = ["{}.trec.with_json".format(i) for i in self.train_folds]
+
+        qrel_file = tf.gfile.Open(os.path.join(data_dir, "qrels"))
+        qrels = self._read_qrel(qrel_file)
+        tf.logging.info("Qrel size: {}".format(len(qrels)))
+
+        query_file = tf.gfile.Open(os.path.join(data_dir, "queries.json"))
+        qid2queries = self._read_queries(query_file)
+        tf.logging.info("Loaded {} queries.".format(len(qid2queries)))
+
+        for file_name in train_files:
+            train_file = tf.gfile.Open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(train_file):
+                items = line.strip().split('#')
+                trec_line = items[0]
+
+                qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+
+                # here a document is already a passage
+
+                # to train, we do not use all passages because it leads to overfitting
+                # we subsample the following:
+                #    first passage in a doc
+                #    33% other passages in the doc
+                if int(docid.split('_')[-1].split('-')[-1]) != 0 and random.random() > 0.33:
+                    continue
+
+                assert qid in qid2queries, "QID {} not found".format(qid)
+                q_json_dict = qid2queries[qid]
+                q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
+
+                json_dict = json.loads('#'.join(items[1:]))
+                body_words = json_dict["doc"]["body"].split(' ')
+                truncated_body = ' '.join(body_words[0: min(200, len(body_words))])
+
+                # we use the concatentation of title and passage
+                d = tokenization.convert_to_unicode(json_dict["doc"].get("title", "") + " " + truncated_body)
+
+                r = int(r)
+                if r > self.max_train_depth:
+                    continue
+                label = tokenization.convert_to_unicode("0")
+                if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
+                    label = tokenization.convert_to_unicode("1")
+                guid = "train-%s-%s" % (qid, docid)
+                examples.append(
+                    InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
+                )
+            train_file.close()
+        random.shuffle(examples)
+        return examples
+
+    def get_test_examples(self, data_dir):
+        examples = []
+        dev_file = tf.gfile.Open(os.path.join(data_dir, "{}.trec.with_json".format(self.test_folds)))
+        qrel_file = tf.gfile.Open(os.path.join(data_dir, "qrels"))
+        qrels = self._read_qrel(qrel_file)
+        tf.logging.info("Qrel size: {}".format(len(qrels)))
+
+        query_file = tf.gfile.Open(os.path.join(data_dir, "queries.json"))
+        qid2queries = self._read_queries(query_file)
+        tf.logging.info("Loaded {} queries.".format(len(qid2queries)))
+
+        for i, line in enumerate(dev_file):
+            items = line.strip().split('#')
+            trec_line = items[0]
+
+            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+            assert qid in qid2queries, "QID {} not found".format(qid)
+            q_json_dict = qid2queries[qid]
+            q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
+
+            json_dict = json.loads('#'.join(items[1:]))
+            body_words = json_dict["doc"]["body"].split(' ')
+            truncated_body = ' '.join(body_words[0: min(200, len(body_words))])
+            d = tokenization.convert_to_unicode(json_dict["doc"].get("title", "") + "  " + truncated_body)
+
+            r = int(r)
+            if r > self.max_test_depth:
+                continue
+            label = tokenization.convert_to_unicode("0")
+            if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
+                label = tokenization.convert_to_unicode("1")
+            guid = "test-%s-%s" % (qid, docid)
+            examples.append(
+                InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
+            )
+        dev_file.close()
+        return examples
+
+    def _read_qrel(self, qrel_file):
+        qrels = set()
+        for line in qrel_file:
+            qid, _, docid, rel = line.strip().split(' ')
+            rel = int(rel)
+            if rel > 0:
+                qrels.add((qid, docid))
+        return qrels
+
+    def _read_queries(self, query_file):
+        qid2queries = {}
+        for i, line in enumerate(query_file):
+            json_dict = json.loads(line)
+            qid = json_dict['qid']
+            json_dict['subtopics'] = ' '.join(json_dict['subtopics'])
+            qid2queries[qid] = json_dict
+            if i < 3:
+                tf.logging.info("Example Q: {}".format(json_dict))
+        return qid2queries
+
+    def get_labels(self):
+        return ["0", "1"]
+
+
+class S2Processor(DataProcessor):
+
+    def __init__(self):
+        self.max_test_depth = 100
+        self.max_train_depth = 100
+        self.n_folds = 10
+        self.fold = FLAGS.fold
+
+        self.train_folds = [(self.fold + i) % self.n_folds + 1 for i in range(self.n_folds - 1)]
+        self.test_folds = (self.fold + self.n_folds - 1) % self.n_folds + 1
+        tf.logging.info("Train Folds: {}".format(str(self.train_folds)))
+        tf.logging.info("Test Fold: {}".format(str(self.test_folds)))
+
+        self.d_fields = FLAGS.doc_field.split(' ')
+        tf.logging.info("Using document fields {}".format(' '.join(self.d_fields)))
 
     def get_train_examples(self, data_dir):
         examples = []
@@ -531,9 +727,9 @@ class ReutersProcessor(DataProcessor):
                 q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
 
                 json_dict = json.loads('#'.join(items[1:]))
-                body_words = json_dict["doc"]["body"].split(' ')
-                truncated_body = ' '.join(body_words[0: min(200, len(body_words))])
-                d = tokenization.convert_to_unicode(json_dict["doc"].get("title", "") + truncated_body)
+                d_text = [json_dict["doc"].get(field, "") for field in self.d_fields]
+                d_text = " . ".join(d_text)
+                d = tokenization.convert_to_unicode(d_text)
 
                 r = int(r)
                 if r > self.max_train_depth:
@@ -547,44 +743,6 @@ class ReutersProcessor(DataProcessor):
                 )
             train_file.close()
         random.shuffle(examples)
-        return examples
-
-    def get_dev_examples(self, data_dir):
-        examples = []
-        dev_file = open(os.path.join(data_dir, "{}.trec.with_json".format(self.dev_folds)))
-        qrel_file = open(os.path.join(data_dir, "qrels"))
-        qrels = self._read_qrel(qrel_file)
-        tf.logging.info("Qrel size: {}".format(len(qrels)))
-
-        query_file = open(os.path.join(data_dir, "queries.json"))
-        qid2queries = self._read_queries(query_file)
-        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), qid2queries.values()[0]))
-
-        for i, line in enumerate(dev_file):
-            items = line.strip().split('#')
-            trec_line = items[0]
-
-            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
-            assert qid in qid2queries, "QID {} not found".format(qid)
-            q_json_dict = qid2queries[qid]
-            q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
-
-            json_dict = json.loads('#'.join(items[1:]))
-            body_words = json_dict["doc"]["body"].split(' ')
-            truncated_body = ' '.join(body_words[0: min(200, len(body_words))])
-            d = tokenization.convert_to_unicode(json_dict["doc"].get("title", "") + truncated_body)
-
-            r = int(r)
-            if r > self.max_test_depth:
-                continue
-            label = tokenization.convert_to_unicode("0")
-            if (qid, docid) in qrels or (qid, docid.split('_')[0]) in qrels:
-                label = tokenization.convert_to_unicode("1")
-            guid = "dev-%s-%s" % (qid, docid)
-            examples.append(
-                InputExample(guid=guid, text_a_list=q_text_list, text_b=d, label=label)
-            )
-        dev_file.close()
         return examples
 
     def get_test_examples(self, data_dir):
@@ -608,9 +766,9 @@ class ReutersProcessor(DataProcessor):
             q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
 
             json_dict = json.loads('#'.join(items[1:]))
-            body_words = json_dict["doc"]["body"].split(' ')
-            truncated_body = ' '.join(body_words[0: min(200, len(body_words))])
-            d = tokenization.convert_to_unicode(json_dict["doc"].get("title", "") + truncated_body)
+            d_text = [json_dict["doc"].get(field, "") for field in self.d_fields]
+            d_text = " . ".join(d_text)
+            d = tokenization.convert_to_unicode(d_text)
 
             r = int(r)
             if r > self.max_test_depth:
@@ -1064,15 +1222,17 @@ def main(_):
     processors = {
         "robust": RobustProcessor,
         "clueweb": ClueWebProcessor,
-        "rcv": ReutersProcessor,
+        "robustpassage": RobustPassageProcessor,
+        "cluewebpassage": ClueWebPassageProcessor,
+        "s2": S2Processor,
     }
 
     tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
                                                   FLAGS.init_checkpoint)
 
-    if not FLAGS.do_train and not FLAGS.do_eval and not FLAGS.do_predict:
+    if not FLAGS.do_train and not FLAGS.do_predict:
         raise ValueError(
-            "At least one of `do_train`, `do_eval` or `do_predict' must be True.")
+            "At least one of `do_train` or `do_predict' must be True.")
 
     bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
 
@@ -1123,8 +1283,6 @@ def main(_):
         train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
         file_based_convert_examples_to_features(
             train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
-        #tf.logging.info("write to train.tf_record! exit. I am NOT training")
-        #exit(-1)
 
     # If TPU is not available, this will fall back to normal Estimator on CPU
     # or GPU.
@@ -1157,52 +1315,6 @@ def main(_):
             is_training=True,
             drop_remainder=True)
         estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
-
-    if FLAGS.do_eval:
-        eval_examples = processor.get_dev_examples(FLAGS.data_dir)
-        num_actual_eval_examples = len(eval_examples)
-        if FLAGS.use_tpu:
-            # TPU requires a fixed batch size for all batches, therefore the number
-            # of examples must be a multiple of the batch size, or else examples
-            # will get dropped. So we pad with fake examples which are ignored
-            # later on. These do NOT count towards the metric (all tf.metrics
-            # support a per-instance weight, and these get a weight of 0.0).
-            while len(eval_examples) % FLAGS.eval_batch_size != 0:
-                eval_examples.append(PaddingInputExample())
-
-        eval_file = os.path.join(FLAGS.output_dir, "eval.tf_record")
-        file_based_convert_examples_to_features(
-            eval_examples, label_list, FLAGS.max_seq_length, tokenizer, eval_file)
-
-        tf.logging.info("***** Running evaluation *****")
-        tf.logging.info("  Num examples = %d (%d actual, %d padding)",
-                        len(eval_examples), num_actual_eval_examples,
-                        len(eval_examples) - num_actual_eval_examples)
-        tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
-
-        # This tells the estimator to run through the entire set.
-        eval_steps = None
-        # However, if running eval on the TPU, you will need to specify the
-        # number of steps.
-        if FLAGS.use_tpu:
-            assert len(eval_examples) % FLAGS.eval_batch_size == 0
-            eval_steps = int(len(eval_examples) // FLAGS.eval_batch_size)
-
-        eval_drop_remainder = True if FLAGS.use_tpu else False
-        eval_input_fn = file_based_input_fn_builder(
-            input_file=eval_file,
-            seq_length=FLAGS.max_seq_length,
-            is_training=False,
-            drop_remainder=eval_drop_remainder)
-
-        result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
-
-        output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
-        with tf.gfile.GFile(output_eval_file, "w") as writer:
-            tf.logging.info("***** Eval results *****")
-            for key in sorted(result.keys()):
-                tf.logging.info("  %s = %s", key, str(result[key]))
-                writer.write("%s = %s\n" % (key, str(result[key])))
 
     if FLAGS.do_predict:
         predict_examples = processor.get_test_examples(FLAGS.data_dir)
