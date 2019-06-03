@@ -133,7 +133,7 @@ flags.DEFINE_string(
 
 
 flags.DEFINE_string("doc_field", None,
-                    "title body/abstract url, etc; seperated by a blank")
+                    "title body/abstract url, etc; seperated by a comma")
 
 
 class InputExample(object):
@@ -700,7 +700,7 @@ class S2Processor(DataProcessor):
         tf.logging.info("Train Folds: {}".format(str(self.train_folds)))
         tf.logging.info("Test Fold: {}".format(str(self.test_folds)))
 
-        self.d_fields = FLAGS.doc_field.split(' ')
+        self.d_fields = FLAGS.doc_field.split(',')
         tf.logging.info("Using document fields {}".format(' '.join(self.d_fields)))
         self.q_fields = ["query"]
 
@@ -722,7 +722,7 @@ class S2Processor(DataProcessor):
                 items = line.strip().split('#')
                 trec_line = items[0]
 
-                qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+                qid, _, docid, r, _ = trec_line.strip().split(' ')
                 assert qid in qid2queries, "QID {} not found".format(qid)
                 q_json_dict = qid2queries[qid]
                 q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
@@ -761,7 +761,7 @@ class S2Processor(DataProcessor):
             items = line.strip().split('#')
             trec_line = items[0]
 
-            qid, _, docid, r, _, _ = trec_line.strip().split(' ')
+            qid, _, docid, r, _ = trec_line.strip().split(' ')
             assert qid in qid2queries, "QID {} not found".format(qid)
             q_json_dict = qid2queries[qid]
             q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
