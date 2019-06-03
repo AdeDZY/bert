@@ -702,6 +702,7 @@ class S2Processor(DataProcessor):
 
         self.d_fields = FLAGS.doc_field.split(' ')
         tf.logging.info("Using document fields {}".format(' '.join(self.d_fields)))
+        self.q_fields = ["query"]
 
     def get_train_examples(self, data_dir):
         examples = []
@@ -713,7 +714,7 @@ class S2Processor(DataProcessor):
 
         query_file = open(os.path.join(data_dir, "queries.json"))
         qid2queries = self._read_queries(query_file)
-        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), qid2queries.values()[0]))
+        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), list(qid2queries.values())[0]))
 
         for file_name in train_files:
             train_file = open(os.path.join(data_dir, file_name))
