@@ -359,6 +359,32 @@ class MarcoTsvDocProcessor(DataProcessor):
             test_file.close()
         return examples
 
+class CarJsonDocProcessor(DataProcessor):
+
+    def get_test_examples(self, data_dir):
+        test_files = [data_dir]
+        examples = []
+
+        for file_name in test_files:
+            test_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(test_file):
+                jdict = json.loads(line)
+                docid = jdict["id"]
+                doc_text = jdict["content"]
+                doc_text = tokenization.convert_to_unicode(doc_text)
+                term_recall_dict = {}
+                if not doc_text.strip():
+                     doc_text = '.'
+                #    tf.logging.info("skipping {}".format(docid))
+                #    continue
+
+                guid = "test-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            test_file.close()
+        return examples
+
 
 class MarcoQueryProcessor(DataProcessor):
 
@@ -557,6 +583,8 @@ def convert_single_example(ex_index, example, max_seq_length,
             is_real_example=False)
 
     text_tokens = tokenizer.tokenize(example.text)
+    if len(text_tokens) == 0:
+        text_tokens = ["."]
     if len(text_tokens) > max_seq_length - 2:
         text_tokens = text_tokens[0:(max_seq_length - 2)]
     text_target_weights, text_target_mask = gen_target_token_weights(text_tokens, example.term_recall_dict)
@@ -966,7 +994,8 @@ def main(_):
                   "marcoquery": MarcoQueryProcessor,
                   "marcodoc": MarcoDocProcessor, 
                   "marcotsvdoc": MarcoTsvDocProcessor,
-                  "cardoc": CarDocProcessor}
+                  "cardoc": CarDocProcessor, 
+                  "carjsondoc": CarJsonDocProcessor}
 
     tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
                                                   FLAGS.init_checkpoint)
@@ -1025,7 +1054,7 @@ def main(_):
         train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
         file_based_convert_examples_to_features(
             train_examples, FLAGS.max_seq_length, tokenizer, train_file)
-        #tf.logging.info("write to train.tf_record! exit. I am NOT training")
+        #tf.logging.info("write to {}/train.tf_record! exit. I am NOT training".format(FLAGS.output_dir))
         #tf.logging.info("I am NOT writing train file")
         #exit(-1)
 
@@ -1053,12 +1082,11 @@ def main(_):
         tf.logging.info("  Num examples = %d", len(train_examples))
         tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
         tf.logging.info("  Num steps = %d", num_train_steps)
-        #train_input_fn = file_based_input_fn_builder(
-        #    input_file=train_file,
-        #    seq_length=FLAGS.max_seq_length,
-        #    is_training=True,
-        #    drop_remainder=True)
-        tf.logging.info("i am not generating training files")
+        train_input_fn = file_based_input_fn_builder(
+            input_file=train_file,
+            seq_length=FLAGS.max_seq_length,
+            is_training=True,
+            drop_remainder=True)
         estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
     if FLAGS.do_eval:
@@ -1119,9 +1147,10 @@ def main(_):
                 predict_examples.append(PaddingInputExample())
 
         predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
-        file_based_convert_examples_to_features(predict_examples,
-                                                FLAGS.max_seq_length, tokenizer,
-                                                predict_file)
+        #file_based_convert_examples_to_features(predict_examples,
+        #                                        FLAGS.max_seq_length, tokenizer,
+        #                                        predict_file)
+        tf.logging.info("I am not writing predict.tf_record")
 
         tf.logging.info("***** Running prediction*****")
         tf.logging.info("  Num examples = %d (%d actual, %d padding)",

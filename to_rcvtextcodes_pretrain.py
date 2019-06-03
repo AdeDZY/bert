@@ -3,7 +3,13 @@ import sys
 import random
 
 fin = open(sys.argv[1])
-fout = open(sys.argv[2], 'w')
+codes_vocab_f = open(sys.argv[2])
+fout = open(sys.argv[3], 'w')
+
+codes_vocab = {}
+for line in codes_vocab_f:
+    c, t = line.strip().split('\t')
+    codes_vocab[c] = t
 
 for line in fin:
     json_dict = json.loads(line)
@@ -21,11 +27,11 @@ for line in fin:
     random.shuffle(industry_codes)
     
     if country_codes:
-        country_code_text = "CODECOUNTRY " + ' / '.join(["RCV" + t for t in country_codes])
+        country_code_text = "CODECOUNTRY " + ' / '.join([codes_vocab.get(t, "") for t in country_codes])
     if topic_codes:
-        topic_code_text = "CODETOPIC " + ' / '.join(["RCV" + t for t in topic_codes])
+        topic_code_text = "CODETOPIC " + ' / '.join([ codes_vocab.get(t, "")  for t in topic_codes])
     if industry_codes:
-        industry_code_text = "CODEINDUSTRY " + ' / '.join(["RCV" + t for t in industry_codes])
+        industry_code_text = "CODEINDUSTRY " + ' / '.join([codes_vocab.get(t, "") for t in industry_codes])
 
     title = json_dict.get('headline', "")
     if not title:
