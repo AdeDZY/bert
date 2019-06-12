@@ -138,7 +138,7 @@ flags.DEFINE_string(
 
 flags.DEFINE_string(
     "document_field", None,
-    "title, body, ")
+    "title, body, url")
 
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
@@ -334,6 +334,67 @@ class MarcoDocProcessor(DataProcessor):
                 docid = json_dict["doc"]["id"]
                 doc_text = tokenization.convert_to_unicode(json_dict["doc"]["title"])
                 term_recall_dict = json_dict["term_recall"]
+
+                guid = "test-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            test_file.close()
+        return examples
+
+class TREC19MarcoDocProcessor(DataProcessor):
+
+    def get_train_examples(self, data_dir):
+        examples = []
+        train_files = ["msmarco-doctrain.docterm_recall.train"]
+
+        tf.logging.info("using document field {}".format(FLAGS.doc_field))
+        for file_name in train_files:
+            train_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(train_file):
+                json_dict = json.loads(line)
+                docid = json_dict["doc"]["id"]
+                doc_text = tokenization.convert_to_unicode(json_dict["doc"][FLAGS.doc_field])
+                term_recall_dict = json_dict["term_recall"][FLAGS.doc_field]
+
+                guid = "train-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            train_file.close()
+        random.shuffle(examples)
+        return examples
+
+    def get_dev_examples(self, data_dir):
+        dev_files = ["myalltrain.relevant.docterm_recall.dev"]
+        examples = []
+        tf.logging.info("using document field {}".format(FLAGS.doc_field))
+        for file_name in dev_files:
+            dev_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(dev_file):
+                json_dict = json.loads(line)
+                docid = json_dict["doc"]["id"]
+                doc_text = tokenization.convert_to_unicode(json_dict["doc"][FLAGS.doc_field])
+                term_recall_dict = json_dict["term_recall"][FLAGS.doc_field]
+
+                guid = "dev-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            dev_file.close()
+        return examples
+
+    def get_test_examples(self, data_dir):
+        test_files = ["myalltrain.relevant.docterm_recall.test"]
+        examples = []
+        tf.logging.info("using document field {}".format(FLAGS.doc_field))
+        for file_name in test_files:
+            test_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(test_file):
+                json_dict = json.loads(line)
+                docid = json_dict["doc"]["id"]
+                doc_text = tokenization.convert_to_unicode(json_dict["doc"][FLAGS.doc_field])
+                term_recall_dict = json_dict["term_recall"][FLAGS.doc_field]
 
                 guid = "test-%s" % docid
                 examples.append(
