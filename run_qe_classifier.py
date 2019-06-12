@@ -340,7 +340,7 @@ class ClueWebProcessor(DataProcessor):
 
         query_file = open(os.path.join(data_dir, "queries.json"))
         qid2queries = self._read_queries(query_file)
-        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), qid2queries.values()[0]))
+        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), list(qid2queries.values())[0]))
 
         for file_name in train_files:
             train_file = open(os.path.join(data_dir, file_name))
@@ -383,7 +383,7 @@ class ClueWebProcessor(DataProcessor):
 
         query_file = open(os.path.join(data_dir, "queries.json"))
         qid2queries = self._read_queries(query_file)
-        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), qid2queries.values()[0]))
+        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), list(qid2queries.values())[0]))
 
         for i, line in enumerate(dev_file):
             items = line.strip().split('#')
@@ -728,6 +728,7 @@ class S2Processor(DataProcessor):
                 q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
 
                 json_dict = json.loads('#'.join(items[1:]))
+                json_dict["doc"]["authors"] = ', '.join(json_dict["doc"]["authors"])
                 d_text = [json_dict["doc"].get(field, "") for field in self.d_fields]
                 d_text = " . ".join(d_text)
                 d = tokenization.convert_to_unicode(d_text)
@@ -755,7 +756,7 @@ class S2Processor(DataProcessor):
 
         query_file = open(os.path.join(data_dir, "queries.json"))
         qid2queries = self._read_queries(query_file)
-        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), qid2queries.values()[0]))
+        tf.logging.info("Loaded {} queries. Example: {}".format(len(qid2queries), list(qid2queries.values())[0]))
 
         for i, line in enumerate(dev_file):
             items = line.strip().split('#')
@@ -767,6 +768,7 @@ class S2Processor(DataProcessor):
             q_text_list = [tokenization.convert_to_unicode(q_json_dict[field]) for field in self.q_fields]
 
             json_dict = json.loads('#'.join(items[1:]))
+            json_dict["doc"]["authors"] = ', '.join(json_dict["doc"]["authors"])
             d_text = [json_dict["doc"].get(field, "") for field in self.d_fields]
             d_text = " . ".join(d_text)
             d = tokenization.convert_to_unicode(d_text)

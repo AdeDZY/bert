@@ -70,6 +70,8 @@ flags.DEFINE_integer(
     "Sequences longer than this will be truncated, and sequences shorter "
     "than this will be padded.")
 
+flags.DEFINE_integer("max_body_length", 500, "cut body at this length")
+
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
 flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
@@ -134,6 +136,9 @@ flags.DEFINE_string(
     "recall_field", None,
     "title, body, all")
 
+flags.DEFINE_string(
+    "document_field", None,
+    "title, body, ")
 
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
@@ -351,6 +356,34 @@ class MarcoTsvDocProcessor(DataProcessor):
                 docid, t = line.strip().split('\t')
                 doc_text = tokenization.convert_to_unicode(t)
                 term_recall_dict = {}
+
+                guid = "test-%s" % docid
+                examples.append(
+                    InputExample(guid=guid, text=doc_text, term_recall_dict=term_recall_dict)
+                )
+            test_file.close()
+        return examples
+
+class IdContentsJsonDocProcessor(DataProcessor):
+
+    def get_test_examples(self, data_dir):
+        test_files = [data_dir]
+        examples = []
+
+        for file_name in test_files:
+            test_file = open(os.path.join(data_dir, file_name))
+            for i, line in enumerate(test_file):
+                jdict = json.loads(line)
+                docid = jdict["id"]
+                doc_text = jdict["contents"]
+                doc_text = tokenization.convert_to_unicode(doc_text)
+                doc_words = doc_text.split(' ')
+                doc_text = ' '.join(doc_words[0:min(len(doc_words), FLAGS.max_body_length)]) 
+                term_recall_dict = {}
+                if not doc_text.strip():
+                     doc_text = '.'
+                #    tf.logging.info("skipping {}".format(docid))
+                #    continue
 
                 guid = "test-%s" % docid
                 examples.append(
@@ -757,7 +790,7 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     """Creates a classification model."""
     model = modeling.BertModel(
         config=bert_config,
-        is_training=is_training,
+        is_training=False,
         input_ids=input_ids,
         input_mask=input_mask,
         token_type_ids=segment_ids,
@@ -995,7 +1028,8 @@ def main(_):
                   "marcodoc": MarcoDocProcessor, 
                   "marcotsvdoc": MarcoTsvDocProcessor,
                   "cardoc": CarDocProcessor, 
-                  "carjsondoc": CarJsonDocProcessor}
+                  "carjsondoc": CarJsonDocProcessor,
+                  "idcontentsjson": IdContentsJsonDocProcessor}
 
     tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
                                                   FLAGS.init_checkpoint)
@@ -1147,10 +1181,10 @@ def main(_):
                 predict_examples.append(PaddingInputExample())
 
         predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
-        #file_based_convert_examples_to_features(predict_examples,
-        #                                        FLAGS.max_seq_length, tokenizer,
-        #                                        predict_file)
-        tf.logging.info("I am not writing predict.tf_record")
+        file_based_convert_examples_to_features(predict_examples,
+                                                FLAGS.max_seq_length, tokenizer,
+                                                predict_file)
+        #tf.logging.info("I am not writing predict.tf_record")
 
         tf.logging.info("***** Running prediction*****")
         tf.logging.info("  Num examples = %d (%d actual, %d padding)",
