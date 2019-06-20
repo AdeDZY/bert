@@ -803,7 +803,7 @@ def file_based_convert_examples_to_features(
     writer.close()
 
 
-def file_based_input_fn_builder(input_file, seq_length, is_training,
+def file_based_input_fn_builder(input_files, seq_length, is_training,
                                 drop_remainder):
     """Creates an `input_fn` closure to be passed to TPUEstimator."""
 
@@ -836,10 +836,26 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
 
         # For training, we want a lot of parallel reading and shuffling.
         # For eval, we want no shuffling and parallel reading doesn't matter.
-        d = tf.data.TFRecordDataset(input_file)
+
         if is_training:
+            num_cpu_threads = 4
+            d = tf.data.Dataset.from_tensor_slices(tf.constant(input_files))
             d = d.repeat()
+            d = d.shuffle(buffer_size=len(input_files))
+            # `cycle_length` is the number of parallel files that get read.
+            cycle_length = min(num_cpu_threads, len(input_files))
+
+            # `sloppy` mode means that the interleaving is not exact. This adds
+            # even more randomness to the training pipeline.
+            d = d.apply(
+                tf.contrib.data.parallel_interleave(
+                    tf.data.TFRecordDataset,
+                    sloppy=True,
+                    cycle_length=cycle_length))
             d = d.shuffle(buffer_size=100)
+
+        else:
+            d = tf.data.TFRecordDataset(input_files)
 
         d = d.apply(
             tf.contrib.data.map_and_batch(
