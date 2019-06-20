@@ -137,7 +137,7 @@ flags.DEFINE_string(
     "title, body, all")
 
 flags.DEFINE_string(
-    "document_field", None,
+    "doc_field", None,
     "title, body, url")
 
 class InputExample(object):
@@ -355,6 +355,8 @@ class TREC19MarcoDocProcessor(DataProcessor):
                 json_dict = json.loads(line)
                 docid = json_dict["doc"]["id"]
                 doc_text = tokenization.convert_to_unicode(json_dict["doc"][FLAGS.doc_field])
+                doc_words = doc_text.split(' ')
+                doc_text = ' '.join(doc_words[0:min(len(doc_words), FLAGS.max_body_length)]) 
                 term_recall_dict = json_dict["term_recall"][FLAGS.doc_field]
 
                 guid = "train-%s" % docid
@@ -375,6 +377,8 @@ class TREC19MarcoDocProcessor(DataProcessor):
                 json_dict = json.loads(line)
                 docid = json_dict["doc"]["id"]
                 doc_text = tokenization.convert_to_unicode(json_dict["doc"][FLAGS.doc_field])
+                doc_words = doc_text.split(' ')
+                doc_text = ' '.join(doc_words[0:min(len(doc_words), FLAGS.max_body_length)]) 
                 term_recall_dict = json_dict["term_recall"][FLAGS.doc_field]
 
                 guid = "dev-%s" % docid
@@ -385,15 +389,17 @@ class TREC19MarcoDocProcessor(DataProcessor):
         return examples
 
     def get_test_examples(self, data_dir):
-        test_files = ["myalltrain.relevant.docterm_recall.test"]
+        test_files = [data_dir]
         examples = []
         tf.logging.info("using document field {}".format(FLAGS.doc_field))
         for file_name in test_files:
-            test_file = open(os.path.join(data_dir, file_name))
+            test_file = open(file_name)
             for i, line in enumerate(test_file):
                 json_dict = json.loads(line)
                 docid = json_dict["doc"]["id"]
                 doc_text = tokenization.convert_to_unicode(json_dict["doc"][FLAGS.doc_field])
+                doc_words = doc_text.split(' ')
+                doc_text = ' '.join(doc_words[0:min(len(doc_words), FLAGS.max_body_length)]) 
                 term_recall_dict = json_dict["term_recall"][FLAGS.doc_field]
 
                 guid = "test-%s" % docid
@@ -436,7 +442,7 @@ class IdContentsJsonDocProcessor(DataProcessor):
             for i, line in enumerate(test_file):
                 jdict = json.loads(line)
                 docid = jdict["id"]
-                doc_text = jdict["contents"]
+                doc_text = jdict[FLAGS.doc_field]
                 doc_text = tokenization.convert_to_unicode(doc_text)
                 doc_words = doc_text.split(' ')
                 doc_text = ' '.join(doc_words[0:min(len(doc_words), FLAGS.max_body_length)]) 
@@ -851,7 +857,7 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     """Creates a classification model."""
     model = modeling.BertModel(
         config=bert_config,
-        is_training=False,
+        is_training=is_training,
         input_ids=input_ids,
         input_mask=input_mask,
         token_type_ids=segment_ids,
@@ -1090,7 +1096,8 @@ def main(_):
                   "marcotsvdoc": MarcoTsvDocProcessor,
                   "cardoc": CarDocProcessor, 
                   "carjsondoc": CarJsonDocProcessor,
-                  "idcontentsjson": IdContentsJsonDocProcessor}
+                  "idcontentsjson": IdContentsJsonDocProcessor,
+                  "trec19marcodoc": TREC19MarcoDocProcessor}
 
     tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
                                                   FLAGS.init_checkpoint)
