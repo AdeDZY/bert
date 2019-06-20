@@ -28,6 +28,7 @@ import tokenization
 import tensorflow as tf
 import random
 import json
+import re
 
 flags = tf.flags
 
@@ -342,6 +343,21 @@ class MarcoDocProcessor(DataProcessor):
             test_file.close()
         return examples
 
+
+def split_camel_word(word):
+    word = re.sub(r"([a-z])([A-Z])", r"\1 \2", word)
+    return word
+
+
+def truncate_and_clean_trec_19_doc(doc_text, max_length):
+    doc_words = doc_text.split(' ')
+    res_words = []
+    for word in doc_words[0:min(len(doc_words), max_length)]:
+        res_words.append(split_camel_word(word))
+    res_text = ' '.join(res_words)
+    return res_text
+
+
 class TREC19MarcoDocProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
@@ -355,8 +371,7 @@ class TREC19MarcoDocProcessor(DataProcessor):
                 json_dict = json.loads(line)
                 docid = json_dict["doc"]["id"]
                 doc_text = tokenization.convert_to_unicode(json_dict["doc"][FLAGS.doc_field])
-                doc_words = doc_text.split(' ')
-                doc_text = ' '.join(doc_words[0:min(len(doc_words), FLAGS.max_body_length)]) 
+                doc_text = truncate_and_clean_trec_19_doc(doc_text, FLAGS.max_body_length)
                 term_recall_dict = json_dict["term_recall"][FLAGS.doc_field]
 
                 guid = "train-%s" % docid
@@ -377,8 +392,7 @@ class TREC19MarcoDocProcessor(DataProcessor):
                 json_dict = json.loads(line)
                 docid = json_dict["doc"]["id"]
                 doc_text = tokenization.convert_to_unicode(json_dict["doc"][FLAGS.doc_field])
-                doc_words = doc_text.split(' ')
-                doc_text = ' '.join(doc_words[0:min(len(doc_words), FLAGS.max_body_length)]) 
+                doc_text = truncate_and_clean_trec_19_doc(doc_text, FLAGS.max_body_length)
                 term_recall_dict = json_dict["term_recall"][FLAGS.doc_field]
 
                 guid = "dev-%s" % docid
@@ -398,8 +412,7 @@ class TREC19MarcoDocProcessor(DataProcessor):
                 json_dict = json.loads(line)
                 docid = json_dict["doc"]["id"]
                 doc_text = tokenization.convert_to_unicode(json_dict["doc"][FLAGS.doc_field])
-                doc_words = doc_text.split(' ')
-                doc_text = ' '.join(doc_words[0:min(len(doc_words), FLAGS.max_body_length)]) 
+                doc_text = truncate_and_clean_trec_19_doc(doc_text, FLAGS.max_body_length)
                 term_recall_dict = json_dict["term_recall"][FLAGS.doc_field]
 
                 guid = "test-%s" % docid
@@ -408,7 +421,6 @@ class TREC19MarcoDocProcessor(DataProcessor):
                 )
             test_file.close()
         return examples
-
 
 
 class MarcoTsvDocProcessor(DataProcessor):
@@ -444,8 +456,7 @@ class IdContentsJsonDocProcessor(DataProcessor):
                 docid = jdict["id"]
                 doc_text = jdict[FLAGS.doc_field]
                 doc_text = tokenization.convert_to_unicode(doc_text)
-                doc_words = doc_text.split(' ')
-                doc_text = ' '.join(doc_words[0:min(len(doc_words), FLAGS.max_body_length)]) 
+                doc_text = truncate_and_clean_trec_19_doc(doc_text, FLAGS.max_body_length)
                 term_recall_dict = {}
                 if not doc_text.strip():
                      doc_text = '.'
