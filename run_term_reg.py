@@ -848,6 +848,8 @@ def file_based_input_fn_builder(input_files, seq_length, is_training,
         # For training, we want a lot of parallel reading and shuffling.
         # For eval, we want no shuffling and parallel reading doesn't matter.
 
+        if isinstance(input_files, str):
+            input_files = input_files.split(',') 
         if is_training:
             num_cpu_threads = 4
             d = tf.data.Dataset.from_tensor_slices(tf.constant(input_files))
@@ -1276,10 +1278,12 @@ def main(_):
                 predict_examples.append(PaddingInputExample())
 
         predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
-        file_based_convert_examples_to_features(predict_examples,
-                                                FLAGS.max_seq_length, tokenizer,
-                                                predict_file)
-        #tf.logging.info("I am not writing predict.tf_record")
+        #file_based_convert_examples_to_features(predict_examples,
+        #                                        FLAGS.max_seq_length, tokenizer,
+        #                                        predict_file)
+        tf.logging.info("I am not writing predict.tf_record")
+        #tf.logging.info("I am not runnign model")
+        #exit(-1)
 
         tf.logging.info("***** Running prediction*****")
         tf.logging.info("  Num examples = %d (%d actual, %d padding)",
