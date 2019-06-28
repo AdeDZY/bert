@@ -826,6 +826,8 @@ def file_based_input_fn_builder(input_files, seq_length, is_training,
         "target_mask": tf.FixedLenFeature([seq_length], tf.int64),
         "is_real_example": tf.FixedLenFeature([], tf.int64),
     }
+    if isinstance(input_files, str):
+        input_files = input_files.split(',') 
 
     def _decode_record(record, name_to_features):
         """Decodes a record to a TensorFlow example."""
@@ -848,8 +850,6 @@ def file_based_input_fn_builder(input_files, seq_length, is_training,
         # For training, we want a lot of parallel reading and shuffling.
         # For eval, we want no shuffling and parallel reading doesn't matter.
 
-        if isinstance(input_files, str):
-            input_files = input_files.split(',') 
         if is_training:
             num_cpu_threads = 4
             d = tf.data.Dataset.from_tensor_slices(tf.constant(input_files))
