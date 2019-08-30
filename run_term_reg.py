@@ -362,11 +362,13 @@ class TREC19MarcoDocProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         examples = []
-        train_files = ["msmarco-doctrain.docterm_recall.train"]
+        # train_files = ["msmarco-doctrain.docterm_recall.train"]
+        train_files = [data_dir]
 
         tf.logging.info("using document field {}".format(FLAGS.doc_field))
         for file_name in train_files:
-            train_file = open(os.path.join(data_dir, file_name))
+            train_file = open(file_name)
+            #train_file = open(os.path.join(data_dir, file_name))
             for i, line in enumerate(train_file):
                 json_dict = json.loads(line)
                 docid = json_dict["doc"]["id"]
@@ -413,7 +415,7 @@ class TREC19MarcoDocProcessor(DataProcessor):
                 docid = json_dict["doc"]["id"]
                 doc_text = tokenization.convert_to_unicode(json_dict["doc"][FLAGS.doc_field])
                 doc_text = truncate_and_clean_trec_19_doc(doc_text, FLAGS.max_body_length)
-                term_recall_dict = json_dict["term_recall"][FLAGS.doc_field]
+                term_recall_dict = json_dict["term_recall"].get(FLAGS.doc_field, {})
 
                 guid = "test-%s" % docid
                 examples.append(
@@ -1279,10 +1281,10 @@ def main(_):
 
         predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
         #file_based_convert_examples_to_features(predict_examples,
-        #                                        FLAGS.max_seq_length, tokenizer,
-        #                                        predict_file)
-        tf.logging.info("I am not writing predict.tf_record")
-        #tf.logging.info("I am not runnign model")
+        #                                      FLAGS.max_seq_length, tokenizer,
+        #                                      predict_file)
+        tf.logging.info("I am NOT writing predict.tf_record")
+        #tf.logging.info("I am NOT runnign model")
         #exit(-1)
 
         tf.logging.info("***** Running prediction*****")
