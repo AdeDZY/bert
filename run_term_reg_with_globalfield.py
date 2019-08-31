@@ -380,7 +380,7 @@ def convert_single_example(ex_index, example, max_seq_length,
 
     global_text_tokens = tokenizer.tokenize(example.global_context_text)
     if len(global_text_tokens) > int(max_seq_length/2):
-        global_text_tokens = global_text_tokens[0:max_seq_length/2]
+        global_text_tokens = global_text_tokens[0:int(max_seq_length/2)]
         tf.logging.info("Long Global Context: {}".format(example.global_context_text))
 
     text_tokens = tokenizer.tokenize(example.text)
