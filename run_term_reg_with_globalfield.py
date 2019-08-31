@@ -379,11 +379,17 @@ def convert_single_example(ex_index, example, max_seq_length,
             is_real_example=False)
 
     global_text_tokens = tokenizer.tokenize(example.global_context_text)
+    if len(global_text_tokens) > int(max_seq_length/2):
+        global_text_tokens = global_text_tokens[0:max_seq_length/2]
+        tf.logging.info("Long Global Context: {}".format(example.global_context_text))
+
     text_tokens = tokenizer.tokenize(example.text)
+
     if len(text_tokens) == 0:
         text_tokens = ["."]
     if len(text_tokens) > max_seq_length - 3 - len(global_text_tokens):
         text_tokens = text_tokens[0:(max_seq_length - 3 - len(global_text_tokens))]
+
     text_target_weights, text_target_mask = gen_target_token_weights(text_tokens, example.term_recall_dict)
     assert len(text_target_mask) == len(text_tokens)
     assert len(text_target_weights) == len(text_tokens)
