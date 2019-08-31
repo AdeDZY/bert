@@ -413,8 +413,8 @@ def convert_single_example(ex_index, example, max_seq_length,
         segment_ids.append(1)
     tokens.append("[SEP]")
     segment_ids.append(1)
-    target_weights.append(1)
-    target_mask.append(1)
+    target_weights.append(0)
+    target_mask.append(0)
 
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
 
@@ -426,11 +426,11 @@ def convert_single_example(ex_index, example, max_seq_length,
     while len(input_ids) < max_seq_length:
         input_ids.append(0)
         input_mask.append(0)
-        segment_ids.append(1)
+        segment_ids.append(0)
         target_weights.append(0)
         target_mask.append(0)
 
-    assert len(input_ids) == max_seq_length
+    assert len(input_ids) == max_seq_length, "{} \n {} \n {} \n {}".format(len(input_ids), len(tokens), input_ids, tokens)
     assert len(input_mask) == max_seq_length
     assert len(segment_ids) == max_seq_length
     assert len(target_weights) == max_seq_length
