@@ -69,8 +69,8 @@ def json_to_trec(dataset_file_path: str,
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('dataset_file', help='Dataset json file')
-    parser.add_argument('prediction_file', help='Prediction json File')
+    parser.add_argument('dataset_file', help='Dataset json file that you give BERT for testing')
+    parser.add_argument('prediction_file', help='Prediction File from BERT')
     parser.add_argument('output_file', help='Output File')
     args = parser.parse_args()
 
