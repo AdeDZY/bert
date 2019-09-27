@@ -3,17 +3,18 @@ import sys
 import random
 import nltk
 
+random.seed(9123)
+
 fin = open(sys.argv[1])
 fout = open(sys.argv[2], 'w')
 
 for line in fin:
+    if random.random() > 0.1: 
+        continue
     json_dict = json.loads(line)
     title = json_dict.get('title', "")
-    body = json_dict.get('body', "")
+    body = json_dict.get('contents', "")
     url = json_dict.get('url', "")
-    inlink = json_dict.get('inlink', "")
-    #inlink = inlink.encode('ascii', 'ignore')
-    inlink = set(inlink.split('\t'))
     snippet = ' '.join(body.split()[0:300])
     
     if title:
@@ -22,12 +23,6 @@ for line in fin:
     if url:
         fout.write(url + '\n\n')
    
-    if inlink:
-        tmp = '\n'.join(inlink)
-        tmp = tmp.encode('ascii', 'ignore').decode('utf-8')
-        fout.write(tmp)
-        fout.write('\n\n')
-
     if snippet:
         sents = nltk.sent_tokenize(snippet)
         fout.write('\n'.join(sents))

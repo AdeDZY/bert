@@ -267,8 +267,7 @@ class DeepCTBaseMarcoProcessor(DataProcessor):
 
     def get_test_examples(self, data_dir):
         examples = []
-        dev_file = tf.gfile.Open(os.path.join(data_dir, "bm25.top1000.tsv"))
-        qrel_file = tf.gfile.Open(os.path.join(data_dir, "qrels.dev.tsv"))
+        dev_file = tf.gfile.Open(data_dir)
 
         for i, line in enumerate(dev_file):
             qid, docid, q, d = line.split('\t')
@@ -279,7 +278,6 @@ class DeepCTBaseMarcoProcessor(DataProcessor):
             )
             
         dev_file.close()
-        qrel_file.close()
         return examples
 
     def get_labels(self):
@@ -308,15 +306,14 @@ class DeepCTBaseCarProcessor(DataProcessor):
 class MarcoProcessor(DataProcessor):
 
     def __init__(self):
-        self.max_train_example = 640000 
+        self.max_train_example = 10000000 
         self.max_test_depth = 1000
 
     def get_train_examples(self, data_dir):
         examples = []
-        train_file = open(os.path.join(data_dir, "triples.train.small.tsv00"))
+        data_path = data_dir
+        train_file = open(data_path)
         for (i, line) in enumerate(train_file):
-            # if random.random() < 0.1:
-            #    continue
             q, d_pos, d_neg = line.strip().split('\t')
             guid_pos = "train-pos-%d" % i
             guid_neg = "train-neg-%d" % i
@@ -1411,8 +1408,8 @@ def main(_):
     train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
     file_based_convert_examples_to_features(
         train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
-    #tf.logging.info("write to train.tf_record! exit. I am NOT training")
-    #exit(-1)
+    tf.logging.info("write to train.tf_record! exit. I am NOT training")
+    exit(-1)
 
   # If TPU is not available, this will fall back to normal Estimator on CPU
   # or GPU.

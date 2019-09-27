@@ -66,7 +66,7 @@ flags.DEFINE_bool(
     "models and False for cased models.")
 
 flags.DEFINE_bool(
-    "use_all_layers", False,
+    "use_all_layers", True,
     "feature is last layer or concat all encoder layers")
 
 flags.DEFINE_integer(
@@ -905,50 +905,57 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     # instead.
     #bert_output_cls = tf.expand_dims(model.get_pooled_output(), 1)
     #tf.logging.info(bert_output_cls.shape)
-    if use_all_layers:
-        all_encoder_layers = model.get_all_encoder_layers() # [natcj_size, seq_lenght, hidden_size, nlayers]
-        bert_output_layer = tf.concat(all_encoder_layers, -1) 
-        tf.logging.info(bert_output_layer.shape)
-    else:
-        bert_output_layer = model.get_sequence_output()  # [batch_size, seq_length, hidden_size]
-    #bert_output_layer = bert_output_layer - bert_output_cls
-    tf.logging.info(bert_output_layer.shape)
-    hidden_size = bert_output_layer.shape[-1].value
-    seq_length = bert_output_layer.shape[-2].value
+    all_encoder_layers = model.get_all_encoder_layers() # [natcj_size, seq_lenght, hidden_size, nlayers]
+    bert_output_layers = []
+    all_layer_weights = []
+    all_layer_bias = []
+    hidden_size = all_encoder_layers[0].shape[-1].value
+    seq_length = all_encoder_layers[0].shape[-2].value
     tf.logging.info(hidden_size)
     tf.logging.info(seq_length)
-    bert_output_layer = tf.reshape(bert_output_layer, [-1, hidden_size])  # [batch_size * seq_length, hidden_size]
-    tf.logging.info(bert_output_layer.shape)
+    for i in range(len(all_encoder_layers)):
+        bert_output_layers.append(tf.reshape(all_encoder_layers[i], [-1, hidden_size]))
+        tf.logging.info(bert_output_layers[-1].shape)
+        output_weights = tf.get_variable(
+            "tw_output_weights_{}".format(i), [1, hidden_size],
+            initializer=tf.truncated_normal_initializer(stddev=0.02))
 
-    output_weights = tf.get_variable(
-        "tw_output_weights", [1, hidden_size],
-        initializer=tf.truncated_normal_initializer(stddev=0.02))
-
-    output_bias = tf.get_variable(
-        "tw_output_bias", [1], initializer=tf.zeros_initializer())
+        output_bias = tf.get_variable(
+            "tw_output_bias_{}".format(i), [1], initializer=tf.zeros_initializer())
+        all_layer_weights.append(output_weights)
+        all_layer_bias.append(output_bias)
+    ltr_weights = tf.get_variable("ltr_weights", [1,len(all_encoder_layers)], initializer=tf.truncated_normal_initializer(stddev=0.02))
+    ltr_bias = tf.get_variable("ltr_bias", [1], initializer=tf.zeros_initializer())
 
     with tf.variable_scope("loss"):
         if is_training:
             # I.e., 0.1 dropout
-            bert_output_layer = tf.nn.dropout(bert_output_layer, keep_prob=0.9)
+            for i in range(len(all_encoder_layers)):
+                bert_output_layers[i] = tf.nn.dropout(bert_output_layers[i], keep_prob=0.9)
 
-        logits = tf.matmul(bert_output_layer, output_weights, transpose_b=True)  # [batch_size * seq_length, 1]
-        logits = tf.nn.bias_add(logits, output_bias)  # [batch_size * seq_length, 1]
-        logits = tf.reshape(logits, [-1, seq_length])
+        all_layer_logits = []
+        for i in range(len(all_encoder_layers)):
+                logits = tf.matmul(bert_output_layers[i], all_layer_weights[i], transpose_b=True)  # [batch_size * seq_length, 1]
+                logits = tf.nn.bias_add(logits, all_layer_bias[i])  # [batch_size * seq_length, 1]
+                all_layer_logits.append(logits)
+        ltr_features = tf.concat(all_layer_logits, -1) #[batch_size * seq_length, layers]
+        final_logits = tf.matmul(ltr_features, ltr_weights, transpose_b=True) # [batch_size * seq_length, 1]
+        final_logits = tf.nn.bias_add(final_logits, ltr_bias)
+        final_logits = tf.reshape(final_logits, [-1, seq_length])
         loss = tf.losses.mean_squared_error(
             labels=target_weights,
-            predictions=logits,
+            predictions=final_logits,
             weights=target_mask,
             reduction=tf.losses.Reduction.SUM_BY_NONZERO_WEIGHTS)
         per_example_loss = tf.losses.mean_squared_error(
             labels=target_weights,
-            predictions=logits,
+            predictions=final_logits,
             weights=target_mask,
             reduction=tf.losses.Reduction.NONE)
         per_example_loss = tf.reduce_sum(per_example_loss, axis=-1)
-        masked_logits = logits * tf.to_float(target_mask)
+        masked_logits = final_logits * tf.to_float(target_mask)
 
-        probabilities = tf.nn.sigmoid(logits) # [batch_size * seq_length, hidden_size]
+        probabilities = tf.nn.sigmoid(final_logits) # [batch_size * seq_length, hidden_size]
         masked_probabilities = probabilities * tf.to_float(target_mask)
         # log_probs = tf.nn.log_softmax(logits, axis=-1)
         #one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
@@ -1194,11 +1201,11 @@ def main(_):
             len(train_examples) / FLAGS.train_batch_size * FLAGS.num_train_epochs)
         num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
         train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
-        file_based_convert_examples_to_features(
-            train_examples, FLAGS.max_seq_length, tokenizer, train_file)
-        tf.logging.info("write to {}/train.tf_record! exit. I am NOT training".format(FLAGS.output_dir))
-        #tf.logging.info("I am NOT writing train file")
-        exit(-1)
+        #file_based_convert_examples_to_features(
+        #    train_examples, FLAGS.max_seq_length, tokenizer, train_file)
+        #tf.logging.info("write to {}/train.tf_record! exit. I am NOT training".format(FLAGS.output_dir))
+        tf.logging.info("I am NOT writing train file")
+        #exit(-1)
 
     # If TPU is not available, this will fall back to normal Estimator on CPU
     # or GPU.
@@ -1290,10 +1297,10 @@ def main(_):
                 predict_examples.append(PaddingInputExample())
 
         predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
-        #file_based_convert_examples_to_features(predict_examples,
-        #                                      FLAGS.max_seq_length, tokenizer,
-        #                                      predict_file)
-        tf.logging.info("I am NOT writing predict.tf_record")
+        file_based_convert_examples_to_features(predict_examples,
+                                              FLAGS.max_seq_length, tokenizer,
+                                              predict_file)
+        #tf.logging.info("I am NOT writing predict.tf_record")
         #tf.logging.info("I am NOT runnign model")
         #exit(-1)
 
@@ -1322,7 +1329,7 @@ def main(_):
                 tokens = tokenizer.convert_ids_to_tokens(prediction["token_ids"])
                 if i >= num_actual_predict_examples:
                     break
-                output_line = '\t'.join(['{0} {1:.5f}'.format(t, w) for (t, w) in zip(tokens, logits) if t != '[PAD]' and t != '[CLS]'])
+                output_line = '\t'.join(['{} {}'.format(t, w) for (t, w) in zip(tokens, logits)])
                 writer.write(output_line)
                 writer.write('\n')
                 num_written_lines += 1

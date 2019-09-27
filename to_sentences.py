@@ -12,11 +12,13 @@ fout = open(sys.argv[2], 'w')
 for line in fin:
     json_dict = json.loads(line)
     #title = json_dict.get('title', "")
-    body = json_dict.get('body', "")
+    body = json_dict.get('paperAbstract', "")
     #doc = title + '\n' + body
-    doc = ' '.join(body.split()[0:100])
+    #doc = ' '.join(body.split()[0:100])
     #sentences = [sent.string.strip() for sent in doc.sents]
-    sentences = nltk.sent_tokenize(doc) 
+    #fout.write(title)
+    #fout.write("\n")
+    sentences = nltk.sent_tokenize(body) 
     for sent in sentences:
         fout.write(sent)
         fout.write("\n")
